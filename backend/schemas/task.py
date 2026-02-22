@@ -1,0 +1,24 @@
+from pydantic import BaseModel
+from datetime import datetime
+from core.enums import TaskType, TaskStatus
+
+
+class TaskCreate(BaseModel):
+    name: str
+    task_type: TaskType
+    priority: int = 0
+    model_version_id: str | None = None
+    input_payload: dict
+
+
+class TaskResponse(BaseModel):
+    id: str
+    name: str
+    task_type: TaskType
+    priority: int
+    status: TaskStatus
+    error_message: str | None
+    submitted_at: datetime
+
+    class Config:
+        from_attributes = True
