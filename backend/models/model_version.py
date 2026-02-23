@@ -1,7 +1,7 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from db.base import Base, generate_uuid
+from backend.db.base import Base, generate_uuid
 
 
 class ModelVersion(Base):

@@ -1,7 +1,7 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from db.base import Base, generate_uuid
+from backend.db.base import Base, generate_uuid
 
 
 class AuditLog(Base):
@@ -24,7 +24,7 @@ class AuditLog(Base):
 
     entity_id: Mapped[str] = mapped_column(sa.UUID)
 
-    metadata: Mapped[dict | None] = mapped_column(
+    event_metadata: Mapped[dict | None] = mapped_column(
         sa.JSON,
         nullable=True
     )

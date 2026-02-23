@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from core.enums import TaskType, TaskStatus
+from backend.core.enums import TaskType, TaskStatus
 
 
 class TaskCreate(BaseModel):

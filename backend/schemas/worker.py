@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from core.enums import WorkerStatus, WorkerType
+from backend.core.enums import WorkerStatus, WorkerType
 
 
 class WorkerResponse(BaseModel):

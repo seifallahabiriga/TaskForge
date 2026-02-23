@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from core.enums import ExecutionStatus
+from backend.core.enums import ExecutionStatus
 
 
 class ExecutionResponse(BaseModel):

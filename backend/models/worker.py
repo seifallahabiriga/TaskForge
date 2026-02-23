@@ -1,8 +1,8 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from db.base import Base, generate_uuid
-from core.enums import WorkerStatus, WorkerType
+from backend.db.base import Base, generate_uuid
+from backend.core.enums import WorkerStatus, WorkerType
 
 
 class Worker(Base):
