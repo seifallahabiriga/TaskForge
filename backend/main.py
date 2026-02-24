@@ -5,6 +5,8 @@ from backend.db.session import engine
 from backend.db.base import Base
 import backend.models 
 
+from backend.api.routes.auth import router as auth_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,6 +23,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Register routers
+app.include_router(auth_router)
 
 @app.get("/health", tags=["system"])
 def health_check():

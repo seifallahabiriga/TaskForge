@@ -3,6 +3,8 @@ uvicorn
 sqlalchemy
 pydantic
 pydantic_settings
+pydantic[email]
+argon2_cffi
 python-dotenv
 redis
 psycopg2-binary

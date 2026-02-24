@@ -1,68 +1,73 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from backend.db.session import get_db
+from backend.schemas.user import UserCreate, UserLogin
+from backend.schemas.auth import TokenResponse, RefreshTokenSchema
 from backend.services.auth_service import AuthService
-from backend.schemas.auth import (
-    UserRegisterSchema,
-    UserLoginSchema,
-    TokenResponseSchema
+from backend.core.exceptions import (
+    UserAlreadyExistsError,
+    InvalidCredentialsError,
+    InvalidTokenError,
 )
-from backend.api.deps import get_db
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 auth_service = AuthService()
 
 
-
-# Register
-@router.post("/register", response_model=TokenResponseSchema)
+@router.post("/register", response_model=TokenResponse)
 def register(
-    payload: UserRegisterSchema,
-    db: Session = Depends(get_db)
+    payload: UserCreate,
+    db: Session = Depends(get_db),
 ):
     try:
         return auth_service.register(
             db,
             email=payload.email,
             password=payload.password,
-            username=payload.username
+            username=payload.username,
         )
-    except ValueError as e:
+
+    except UserAlreadyExistsError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
 
 
-# Login
-@router.post("/login", response_model=TokenResponseSchema)
+@router.post("/login", response_model=TokenResponse)
 def login(
-    payload: UserLoginSchema,
-    db: Session = Depends(get_db)
+    payload: UserLogin,
+    db: Session = Depends(get_db),
 ):
     try:
         return auth_service.login(
             db,
             email=payload.email,
-            password=payload.password
+            password=payload.password,
         )
-    except ValueError:
+
+    except InvalidCredentialsError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
+            detail="Invalid credentials",
         )
 
 
-# Refresh Token
-@router.post("/refresh", response_model=TokenResponseSchema)
+@router.post("/refresh", response_model=TokenResponse)
 def refresh(
-    refresh_token: str,
+    payload: RefreshTokenSchema,
+    db: Session = Depends(get_db),
 ):
     try:
-        return auth_service.refresh_tokens(refresh_token)
-    except Exception:
+        return auth_service.refresh_tokens(
+            db,
+            refresh_token=payload.refresh_token,
+        )
+
+    except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
+            detail="Invalid refresh token",
         )

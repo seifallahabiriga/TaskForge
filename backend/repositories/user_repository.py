@@ -12,10 +12,10 @@ class UserRepository:
         return db.query(User).filter(User.id == user_id).first()
 
 
-    def create_user(self, db: Session, *, email: str, hashed_password: str, username: str | None = None) -> User:
+    def create_user(self, db: Session, *, email: str, password_hash: str, username: str | None = None) -> User:
         user = User(
             email=email,
-            hashed_password=hashed_password,
+            password_hash=password_hash,
             username=username
         )
 

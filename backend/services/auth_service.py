@@ -39,7 +39,7 @@ class AuthService:
         user = self.user_repo.create_user(
             db,
             email=email,
-            hashed_password=hashed_password,
+            password_hash=hashed_password,
             username=username
         )
 
