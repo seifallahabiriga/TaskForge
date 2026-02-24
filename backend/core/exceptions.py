@@ -12,3 +12,19 @@ class InvalidCredentialsError(AuthException):
 
 class InvalidTokenError(AuthException):
     """Raised when token validation fails."""
+
+
+class TaskException(Exception):
+    """Base task exception"""
+
+
+class TaskNotFoundError(TaskException):
+    pass
+
+
+class TaskPermissionError(TaskException):
+    pass
+
+
+class TaskExecutionError(TaskException):
+    pass

@@ -67,7 +67,7 @@ class AuthService:
         if not user:
             raise ValueError("Invalid credentials")
 
-        if not verify_password(password, user.hashed_password):
+        if not verify_password(password, user.password_hash):
             raise ValueError("Invalid credentials")
 
         access_token = create_access_token(str(user.id))
