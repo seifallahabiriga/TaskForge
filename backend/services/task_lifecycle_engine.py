@@ -6,26 +6,25 @@ class TaskLifecycleEngine:
 
     def __init__(self):
         self.valid_transitions = {
-            TaskStatus.PENDING: [TaskStatus.RUNNING],
+            TaskStatus.PENDING: [TaskStatus.QUEUED],
+            TaskStatus.QUEUED:  [TaskStatus.RUNNING],
             TaskStatus.RUNNING: [
-                TaskStatus.COMPLETED,
-                TaskStatus.FAILED
+                TaskStatus.SUCCESS,
+                TaskStatus.FAILED,
+                TaskStatus.RETRYING,
             ],
-            TaskStatus.FAILED: [],
-            TaskStatus.COMPLETED: []
+            TaskStatus.RETRYING: [TaskStatus.RUNNING],
+            TaskStatus.SUCCESS:  [],
+            TaskStatus.FAILED:   [],
         }
 
-
     def validate_transition(self, current_status, new_status):
-
-        if new_status not in self.valid_transitions.get(current_status, []):
+        allowed = self.valid_transitions.get(current_status, [])
+        if new_status not in allowed:
             raise TaskExecutionError(
-                f"Invalid transition {current_status} → {new_status}"
+                f"Invalid transition: {current_status} → {new_status}. "
+                f"Allowed: {[s.value for s in allowed]}"
             )
 
-
     def is_terminal(self, status):
-        return status in [
-            TaskStatus.COMPLETED,
-            TaskStatus.FAILED
-        ]
+        return status in [TaskStatus.SUCCESS, TaskStatus.FAILED]
