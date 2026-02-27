@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from backend.db.session import engine
+from backend.db.session import async_engine
 from backend.db.base import Base
 import backend.models 
 
@@ -13,7 +13,7 @@ from backend.api.routes.user import router as user_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=async_engine)
     yield
     # Shutdown
     pass
