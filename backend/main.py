@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 
 from backend.db.session import async_engine
 from backend.db.base import Base
-import backend.models 
+
+# ensures Celery tasks are registered on startup
+import backend.queue.tasks  # noqa
 
 from backend.api.routes.auth import router as auth_router
 from backend.api.routes.task import router as task_router
@@ -14,7 +16,12 @@ from backend.api.routes.user import router as user_router
 async def lifespan(app: FastAPI):
     # Startup
     Base.metadata.create_all(bind=async_engine)
+
+    # Forces Celery task discovery and registration
+    import backend.queue.celery_app  # noqa
+
     yield
+
     # Shutdown
     pass
 
@@ -22,13 +29,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="TaskForge",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Register routers
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(task_router)
+
 
 @app.get("/health", tags=["system"])
 def health_check():

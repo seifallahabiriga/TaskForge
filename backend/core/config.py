@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     CELERY_DEFAULT_QUEUE: str        # Standard inference jobs
     CELERY_HIGH_PRIORITY_QUEUE: str  # Latency-sensitive jobs
     CELERY_LOW_PRIORITY_QUEUE: str   # Heavy background or batch jobs
+    CELERY_MAX_RETRIES: int = 3      # Max retry attempts for failed tasks 
+    CELERY_RETRY_DELAY_SECONDS: int = 5 # Delay between retries (seconds)
 
     # Authentication security
     ALGORITHM: str                  # JWT signing algorithm (e.g., HS256)

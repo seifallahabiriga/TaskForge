@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from backend.repositories.task_repository import TaskRepository
 from backend.core.enums import TaskStatus
 from backend.services.task_lifecycle_engine import TaskLifecycleEngine
+from backend.queue.producer import Producer
 from backend.core.exceptions import (
     TaskNotFoundError,
     TaskExecutionError,
@@ -15,6 +16,7 @@ class TaskService:
     def __init__(self):
         self.task_repo = TaskRepository()
         self.engine = TaskLifecycleEngine()
+        self.producer = Producer()
 
     # ------------------------------------------------------------------ #
     # Task Creation                                                        #
@@ -31,6 +33,7 @@ class TaskService:
         priority: int = 0,
         model_version_id: str | None = None,
     ):
+        # Step 1 — Persist task (initial PENDING state)
         task = self.task_repo.create_task(
             db,
             user_id=user_id,
@@ -39,6 +42,16 @@ class TaskService:
             input_payload=input_payload,
             priority=priority,
             model_version_id=model_version_id,
+        )
+
+        # Step 2 — Transition to QUEUED (system orchestration state)
+        self.queue_task(db, task_id=task.id)
+
+        # Step 3 — Send job to queue broker
+        self.producer.enqueue_task(
+            task_id=task.id,
+            payload=input_payload,
+            priority=priority,
         )
 
         return task
