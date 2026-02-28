@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pydantic_settings
+pydantic[email]
+argon2_cffi
+python-dotenv
+redis
+celery[redis]
+flower
+psycopg2-binary
+passlib[bcrypt]
+python-jose
+prometheus-client
