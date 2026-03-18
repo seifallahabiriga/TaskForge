@@ -1,15 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from backend.models.task import Task
 from backend.core.enums import TaskStatus
 
 
 class TaskRepository:
 
-    def create_task(
+    async def create_task(
         self,
-        db: Session,
+        db: AsyncSession,
         *,
         user_id: str,
         name: str,
@@ -31,62 +32,63 @@ class TaskRepository:
         )
 
         db.add(task)
-        db.commit()
-        db.refresh(task)
+        await db.commit()
+        await db.refresh(task)
 
         return task
 
 
-    def get_task_by_id(self, db: Session, task_id: str) -> Task | None:
-        return db.query(Task).filter(Task.id == task_id).first()
+    async def get_task_by_id(self, db: AsyncSession, task_id: str) -> Task | None:
+        result = await db.execute(select(Task).where(Task.id == task_id))
+        return result.scalars().first()
 
 
-    def get_tasks_by_user(
+    async def get_tasks_by_user(
         self,
-        db: Session,
+        db: AsyncSession,
         user_id: str,
         skip: int = 0,
         limit: int = 50,
     ):
-        return (
-            db.query(Task)
-            .filter(Task.user_id == user_id)
+        result = await db.execute(
+            select(Task)
+            .where(Task.user_id == user_id)
             .order_by(Task.submitted_at.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
 
-    def list_tasks_by_status(
+    async def list_tasks_by_status(
         self,
-        db: Session,
+        db: AsyncSession,
         status: TaskStatus,
         skip: int = 0,
         limit: int = 50,
     ):
-        return (
-            db.query(Task)
-            .filter(Task.status == status)
+        result = await db.execute(
+            select(Task)
+            .where(Task.status == status)
             .order_by(Task.priority.desc(), Task.submitted_at.asc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
 
-    def get_pending_tasks(self, db: Session, limit: int = 50):
-        return self.list_tasks_by_status(db, TaskStatus.PENDING, limit=limit)
+    async def get_pending_tasks(self, db: AsyncSession, limit: int = 50):
+        return await self.list_tasks_by_status(db, TaskStatus.PENDING, limit=limit)
 
 
-    def update_task_status(
+    async def update_task_status(
         self,
-        db: Session,
+        db: AsyncSession,
         task_id: str,
         status: TaskStatus,
     ) -> Task | None:
 
-        task = self.get_task_by_id(db, task_id)
+        task = await self.get_task_by_id(db, task_id)
         if not task:
             return None
 
@@ -98,28 +100,28 @@ class TaskRepository:
         if status in (TaskStatus.SUCCESS, TaskStatus.FAILED):
             task.completed_at = datetime.utcnow()
 
-        db.commit()
-        db.refresh(task)
+        await db.commit()
+        await db.refresh(task)
         return task
 
 
-    def increment_retry_count(self, db: Session, task_id: str) -> Task | None:
-        task = self.get_task_by_id(db, task_id)
+    async def increment_retry_count(self, db: AsyncSession, task_id: str) -> Task | None:
+        task = await self.get_task_by_id(db, task_id)
         if not task:
             return None
 
         task.retry_count += 1
-        db.commit()
-        db.refresh(task)
+        await db.commit()
+        await db.refresh(task)
         return task
 
 
-    def delete_task(self, db: Session, task_id: str) -> bool:
-        task = self.get_task_by_id(db, task_id)
+    async def delete_task(self, db: AsyncSession, task_id: str) -> bool:
+        task = await self.get_task_by_id(db, task_id)
         if not task:
             return False
 
-        db.delete(task)
-        db.commit()
+        await db.delete(task)
+        await db.commit()
         
         return True

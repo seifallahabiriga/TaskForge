@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from backend.models.execution import Execution
 from backend.core.enums import ExecutionStatus
@@ -11,9 +12,9 @@ class ExecutionRepository:
     # Creation                                                            #
     # ------------------------------------------------------------------ #
 
-    def create_execution(
+    async def create_execution(
         self,
-        db: Session,
+        db: AsyncSession,
         *,
         task_id: str,
         worker_id: str,
@@ -31,8 +32,8 @@ class ExecutionRepository:
         )
 
         db.add(execution)
-        db.commit()
-        db.refresh(execution)
+        await db.commit()
+        await db.refresh(execution)
 
         return execution
 
@@ -40,77 +41,74 @@ class ExecutionRepository:
     # Queries                                                             #
     # ------------------------------------------------------------------ #
 
-    def get_execution_by_id(
+    async def get_execution_by_id(
         self,
-        db: Session,
+        db: AsyncSession,
         execution_id: str,
     ) -> Execution | None:
-        return (
-            db.query(Execution)
-            .filter(Execution.id == execution_id)
-            .first()
-        )
+        result = await db.execute(select(Execution).where(Execution.id == execution_id))
+        return result.scalars().first()
 
-    def get_executions_by_task(
+    async def get_executions_by_task(
         self,
-        db: Session,
+        db: AsyncSession,
         task_id: str,
         skip: int = 0,
         limit: int = 100,
     ):
-        return (
-            db.query(Execution)
-            .filter(Execution.task_id == task_id)
+        result = await db.execute(
+            select(Execution)
+            .where(Execution.task_id == task_id)
             .order_by(Execution.created_at.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
-    def get_worker_executions(
+    async def get_worker_executions(
         self,
-        db: Session,
+        db: AsyncSession,
         worker_id: str,
         skip: int = 0,
         limit: int = 100,
     ):
-        return (
-            db.query(Execution)
-            .filter(Execution.worker_id == worker_id)
+        result = await db.execute(
+            select(Execution)
+            .where(Execution.worker_id == worker_id)
             .order_by(Execution.created_at.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
-    def list_executions_by_status(
+    async def list_executions_by_status(
         self,
-        db: Session,
+        db: AsyncSession,
         status: ExecutionStatus,
         skip: int = 0,
         limit: int = 100,
     ):
-        return (
-            db.query(Execution)
-            .filter(Execution.status == status)
+        result = await db.execute(
+            select(Execution)
+            .where(Execution.status == status)
             .order_by(Execution.created_at.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
     # ------------------------------------------------------------------ #
     # State Updates                                                        #
     # ------------------------------------------------------------------ #
 
-    def update_execution_status(
+    async def update_execution_status(
         self,
-        db: Session,
+        db: AsyncSession,
         execution_id: str,
         status: ExecutionStatus,
     ) -> Execution | None:
 
-        execution = self.get_execution_by_id(db, execution_id)
+        execution = await self.get_execution_by_id(db, execution_id)
         if not execution:
             return None
 
@@ -122,14 +120,14 @@ class ExecutionRepository:
         if status in (ExecutionStatus.SUCCESS, ExecutionStatus.FAILED):
             execution.completed_at = datetime.utcnow()
 
-        db.commit()
-        db.refresh(execution)
+        await db.commit()
+        await db.refresh(execution)
 
         return execution
 
-    def update_execution_metrics(
+    async def update_execution_metrics(
         self,
-        db: Session,
+        db: AsyncSession,
         execution_id: str,
         *,
         runtime_ms: int | None = None,
@@ -137,7 +135,7 @@ class ExecutionRepository:
         error_message: str | None = None,
     ) -> Execution | None:
 
-        execution = self.get_execution_by_id(db, execution_id)
+        execution = await self.get_execution_by_id(db, execution_id)
         if not execution:
             return None
 
@@ -150,8 +148,8 @@ class ExecutionRepository:
         if error_message is not None:
             execution.error_message = error_message
 
-        db.commit()
-        db.refresh(execution)
+        await db.commit()
+        await db.refresh(execution)
 
         return execution
 
@@ -159,17 +157,17 @@ class ExecutionRepository:
     # Deletion                                                            #
     # ------------------------------------------------------------------ #
 
-    def delete_execution(
+    async def delete_execution(
         self,
-        db: Session,
+        db: AsyncSession,
         execution_id: str,
     ) -> bool:
 
-        execution = self.get_execution_by_id(db, execution_id)
+        execution = await self.get_execution_by_id(db, execution_id)
         if not execution:
             return False
 
-        db.delete(execution)
-        db.commit()
+        await db.delete(execution)
+        await db.commit()
 
         return True

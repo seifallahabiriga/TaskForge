@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.session import get_db
+from backend.db.session import get_async_db
 from backend.schemas.user import UserCreate, UserLogin
 from backend.schemas.auth import TokenResponse, RefreshTokenSchema
 from backend.services.auth_service import AuthService
@@ -17,12 +17,12 @@ auth_service = AuthService()
 
 
 @router.post("/register", response_model=TokenResponse)
-def register(
+async def register(
     payload: UserCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        return auth_service.register(
+        return await auth_service.register(
             db,
             email=payload.email,
             password=payload.password,
@@ -37,12 +37,12 @@ def register(
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(
+async def login(
     payload: UserLogin,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        return auth_service.login(
+        return await auth_service.login(
             db,
             email=payload.email,
             password=payload.password,
@@ -56,12 +56,12 @@ def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh(
+async def refresh(
     payload: RefreshTokenSchema,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        return auth_service.refresh_tokens(
+        return await auth_service.refresh_tokens(
             db,
             refresh_token=payload.refresh_token,
         )

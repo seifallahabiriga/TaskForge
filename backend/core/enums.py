@@ -33,6 +33,7 @@ class TaskStatus(str, enum.Enum):
 # -------------------------
 
 class ExecutionStatus(str, enum.Enum):
+    PENDING = "PENDING"
     STARTED = "STARTED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"

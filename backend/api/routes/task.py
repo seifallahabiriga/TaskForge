@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.session import get_db
+from backend.db.session import get_async_db
 from backend.api.deps import get_current_user
 from backend.schemas.task import TaskCreate, TaskResponse, TaskStatusResponse
 from backend.services.task_service import TaskService
@@ -17,12 +17,12 @@ task_service = TaskService()
 # ------------------------------------------------------------------ #
 
 @router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
-def create_task(
+async def create_task(
     payload: TaskCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    task = task_service.create_task(
+    task = await task_service.create_task(
         db,
         user_id=str(current_user.id),
         name=payload.name,
@@ -39,12 +39,12 @@ def create_task(
 # ------------------------------------------------------------------ #
 
 @router.get("/{task_id}", response_model=TaskResponse)
-def get_task(
+async def get_task(
     task_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = await task_service.get_task(db, task_id)
 
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -60,12 +60,12 @@ def get_task(
 # ------------------------------------------------------------------ #
 
 @router.get("/{task_id}/status", response_model=TaskStatusResponse)
-def get_task_status(
+async def get_task_status(
     task_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = await task_service.get_task(db, task_id)
 
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -81,11 +81,11 @@ def get_task_status(
 # ------------------------------------------------------------------ #
 
 @router.get("/user/me", response_model=list[TaskResponse])
-def get_user_tasks(
-    db: Session = Depends(get_db),
+async def get_user_tasks(
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    return task_service.get_user_tasks(db, user_id=str(current_user.id))
+    return await task_service.get_user_tasks(db, user_id=str(current_user.id))
 
 
 # ------------------------------------------------------------------ #
@@ -93,75 +93,75 @@ def get_user_tasks(
 # ------------------------------------------------------------------ #
 
 @router.post("/{task_id}/start", response_model=TaskResponse)
-def start_task(
+async def start_task(
     task_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
     # Ownership check BEFORE mutation
-    task = task_service.get_task(db, task_id)
+    task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if str(task.user_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
-        return task_service.start_task_execution(db, task_id=task_id)
+        return await task_service.start_task_execution(db, task_id=task_id)
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
 @router.post("/{task_id}/complete", response_model=TaskResponse)
-def complete_task(
+async def complete_task(
     task_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if str(task.user_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
-        return task_service.complete_task_execution(db, task_id=task_id)
+        return await task_service.complete_task_execution(db, task_id=task_id)
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
 @router.post("/{task_id}/fail", response_model=TaskResponse)
-def fail_task(
+async def fail_task(
     task_id: str,
     error_message: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if str(task.user_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
-        return task_service.fail_task_execution(db, task_id=task_id, error_message=error_message)
+        return await task_service.fail_task_execution(db, task_id=task_id, error_message=error_message)
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
 @router.post("/{task_id}/retry", response_model=TaskResponse)
-def retry_task(
+async def retry_task(
     task_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if str(task.user_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
-        return task_service.retry_task(db, task_id=task_id)
+        return await task_service.retry_task(db, task_id=task_id)
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
@@ -171,15 +171,15 @@ def retry_task(
 # ------------------------------------------------------------------ #
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_task(
+async def delete_task(
     task_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if str(task.user_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    task_service.task_repo.delete_task(db, task_id)
+    await task_service.task_repo.delete_task(db, task_id)

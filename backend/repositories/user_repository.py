@@ -1,18 +1,21 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from backend.models.user import User
 
 
 class UserRepository:
 
-    def get_by_email(self, db: Session, email: str) -> User | None:
-        return db.query(User).filter(User.email == email).first()
+    async def get_by_email(self, db: AsyncSession, email: str) -> User | None:
+        result = await db.execute(select(User).where(User.email == email))
+        return result.scalars().first()
 
 
-    def get_by_id(self, db: Session, user_id: int) -> User | None:
-        return db.query(User).filter(User.id == user_id).first()
+    async def get_by_id(self, db: AsyncSession, user_id: int) -> User | None:
+        result = await db.execute(select(User).where(User.id == user_id))
+        return result.scalars().first()
 
 
-    def create_user(self, db: Session, *, email: str, password_hash: str, username: str | None = None) -> User:
+    async def create_user(self, db: AsyncSession, *, email: str, password_hash: str, username: str | None = None) -> User:
         user = User(
             email=email,
             password_hash=password_hash,
@@ -20,22 +23,23 @@ class UserRepository:
         )
 
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
 
         return user
     
-    def update_user(self, db: Session, user: User, **updates):
+    async def update_user(self, db: AsyncSession, user: User, **updates):
         for key, value in updates.items():
             setattr(user, key, value)
 
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
         return user
     
-    def delete_user(self, db: Session, user: User):
-        db.delete(user)
-        db.commit()
+    async def delete_user(self, db: AsyncSession, user: User):
+        await db.delete(user)
+        await db.commit()
 
-    def list_users(self, db: Session, skip: int = 0, limit: int = 100):
-        return db.query(User).offset(skip).limit(limit).all()
+    async def list_users(self, db: AsyncSession, skip: int = 0, limit: int = 100):
+        result = await db.execute(select(User).offset(skip).limit(limit))
+        return result.scalars().all()

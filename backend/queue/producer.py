@@ -11,14 +11,9 @@ class Producer:
         payload: dict,
         priority: int | None = None,
     ):
-        """
-        Send job to distributed queue.
-        """
-
         return celery_app.send_task(
             "app.queue.tasks.execute_ai_task",
             args=[task_id, payload],
             queue=settings.CELERY_DEFAULT_QUEUE,
             priority=priority,
-            retry=True,
         )

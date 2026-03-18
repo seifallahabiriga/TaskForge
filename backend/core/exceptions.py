@@ -28,3 +28,6 @@ class TaskPermissionError(TaskException):
 
 class TaskExecutionError(TaskException):
     pass
+
+class ExecutionNotFoundError(Exception):
+    pass

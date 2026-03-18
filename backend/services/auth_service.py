@@ -1,5 +1,5 @@
 from datetime import timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.repositories.user_repository import UserRepository
 from backend.core.security import (
@@ -19,16 +19,16 @@ class AuthService:
         self.user_repo = UserRepository()
 
     # Registration
-    def register(
+    async def register(
         self,
-        db: Session,
+        db: AsyncSession,
         *,
         email: str,
         password: str,
         username: str | None = None
     ):
         # Check if user exists
-        existing_user = self.user_repo.get_by_email(db, email)
+        existing_user = await self.user_repo.get_by_email(db, email)
         if existing_user:
             raise ValueError("User already exists")
 
@@ -36,7 +36,7 @@ class AuthService:
         hashed_password = hash_password(password)
 
         # Create user
-        user = self.user_repo.create_user(
+        user = await self.user_repo.create_user(
             db,
             email=email,
             password_hash=hashed_password,
@@ -55,14 +55,14 @@ class AuthService:
         }
 
     # Login
-    def login(
+    async def login(
         self,
-        db: Session,
+        db: AsyncSession,
         *,
         email: str,
         password: str
     ):
-        user = self.user_repo.get_by_email(db, email)
+        user = await self.user_repo.get_by_email(db, email)
 
         if not user:
             raise ValueError("Invalid credentials")

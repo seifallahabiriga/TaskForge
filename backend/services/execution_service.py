@@ -1,20 +1,22 @@
 import time
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.repositories.execution_repository import ExecutionRepository
 from backend.repositories.task_repository import TaskRepository
+from backend.workers.worker_app.job_runner import JobRunner
 from backend.core.enums import ExecutionStatus
 from backend.core.exceptions import (
     ExecutionNotFoundError,
     TaskNotFoundError,
+    TaskExecutionError
 )
+
 
 
 class ExecutionService:
 
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self):
         self.execution_repo = ExecutionRepository()
         self.task_repo = TaskRepository()
 
@@ -22,18 +24,19 @@ class ExecutionService:
     # Creation                                                            #
     # ------------------------------------------------------------------ #
 
-    def create_execution(
+    async def create_execution(
         self,
+        db: AsyncSession,
         *,
         task_id: str,
         worker_id: str,
     ):
-        task = self.task_repo.get_task_by_id(self.db, task_id)
+        task = await self.task_repo.get_task_by_id(db, task_id)
         if not task:
             raise TaskNotFoundError(f"Task {task_id} not found")
 
-        return self.execution_repo.create_execution(
-            self.db,
+        return await self.execution_repo.create_execution(
+            db,
             task_id=task_id,
             worker_id=worker_id,
             status=ExecutionStatus.PENDING,
@@ -45,56 +48,59 @@ class ExecutionService:
     # Execution State                                                     #
     # ------------------------------------------------------------------ #
 
-    def mark_execution_running(
+    async def mark_execution_running(
         self,
+        db: AsyncSession,
         *,
         execution_id: str,
     ):
-        execution = self._get_or_raise(execution_id)
+        execution = await self._get_or_raise(db, execution_id)
 
         execution.status = ExecutionStatus.RUNNING
         execution.started_at = datetime.utcnow()
 
-        self.db.commit()
-        self.db.refresh(execution)
+        await db.commit()
+        await db.refresh(execution)
 
         return execution
 
-    def mark_execution_success(
+    async def mark_execution_success(
         self,
+        db: AsyncSession,
         *,
         execution_id: str,
         runtime_ms: int | None = None,
         metrics: dict | None = None,
     ):
-        execution = self._get_or_raise(execution_id)
+        execution = await self._get_or_raise(db, execution_id)
 
         execution.status = ExecutionStatus.SUCCESS
         execution.completed_at = datetime.utcnow()
         execution.runtime_ms = runtime_ms
         execution.metrics = metrics
 
-        self.db.commit()
-        self.db.refresh(execution)
+        await db.commit()
+        await db.refresh(execution)
 
         return execution
 
-    def mark_execution_failed(
+    async def mark_execution_failed(
         self,
+        db: AsyncSession,
         *,
         execution_id: str,
         error_message: str,
         runtime_ms: int | None = None,
     ):
-        execution = self._get_or_raise(execution_id)
+        execution = await self._get_or_raise(db, execution_id)
 
         execution.status = ExecutionStatus.FAILED
         execution.completed_at = datetime.utcnow()
         execution.runtime_ms = runtime_ms
         execution.error_message = error_message
 
-        self.db.commit()
-        self.db.refresh(execution)
+        await db.commit()
+        await db.refresh(execution)
 
         return execution
 
@@ -102,42 +108,42 @@ class ExecutionService:
     # Core Compute                                                        #
     # ------------------------------------------------------------------ #
 
-    def run(
+    async def run(
         self,
+        db: AsyncSession,
         *,
         task_id: str,
         payload: dict,
     ):
-        task = self.task_repo.get_task_by_id(self.db, task_id)
+        task = await self.task_repo.get_task_by_id(db, task_id)
         if not task:
             raise TaskNotFoundError(f"Task {task_id} not found")
 
-        # Placeholder AI execution logic
-        # Replace with model_service routing later
+        try:
+            # enforce source of truth for task_type
+            payload["task_type"] = task.task_type
 
-        if task.task_type == "echo":
-            return {"output": payload}
+            return JobRunner.execute(
+                task_id=task_id,
+                payload=payload,
+            )
 
-        elif task.task_type == "sum":
-            numbers = payload.get("numbers", [])
-            return {"output": sum(numbers)}
-
-        else:
-            raise ValueError(f"Unsupported task type: {task.task_type}")
+        except Exception as e:
+            raise TaskExecutionError(f"Execution failed: {str(e)}")
 
     # ------------------------------------------------------------------ #
     # Queries                                                             #
     # ------------------------------------------------------------------ #
 
-    def get_execution(self, execution_id: str):
-        return self.execution_repo.get_execution_by_id(
-            self.db,
+    async def get_execution(self, db: AsyncSession, execution_id: str):
+        return await self.execution_repo.get_execution_by_id(
+            db,
             execution_id,
         )
 
-    def get_task_executions(self, task_id: str):
-        return self.execution_repo.get_executions_by_task(
-            self.db,
+    async def get_task_executions(self, db: AsyncSession, task_id: str):
+        return await self.execution_repo.get_executions_by_task(
+            db,
             task_id,
         )
 
@@ -145,9 +151,9 @@ class ExecutionService:
     # Internal                                                            #
     # ------------------------------------------------------------------ #
 
-    def _get_or_raise(self, execution_id: str):
-        execution = self.execution_repo.get_execution_by_id(
-            self.db,
+    async def _get_or_raise(self, db: AsyncSession, execution_id: str):
+        execution = await self.execution_repo.get_execution_by_id(
+            db,
             execution_id,
         )
         if not execution:

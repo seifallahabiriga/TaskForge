@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from backend.db.session import async_engine
+from backend.db.session import async_engine, sync_engine
 from backend.db.base import Base
 
 # ensures Celery tasks are registered on startup
@@ -15,7 +15,7 @@ from backend.api.routes.user import router as user_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    Base.metadata.create_all(bind=async_engine)
+    Base.metadata.create_all(bind=sync_engine)
 
     # Forces Celery task discovery and registration
     import backend.queue.celery_app  # noqa

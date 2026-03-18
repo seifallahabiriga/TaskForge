@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.repositories.task_repository import TaskRepository
 from backend.core.enums import TaskStatus
@@ -22,9 +22,9 @@ class TaskService:
     # Task Creation                                                        #
     # ------------------------------------------------------------------ #
 
-    def create_task(
+    async def create_task(
         self,
-        db: Session,
+        db: AsyncSession,
         *,
         user_id: str,
         name: str,
@@ -34,7 +34,7 @@ class TaskService:
         model_version_id: str | None = None,
     ):
         # Step 1 — Persist task (initial PENDING state)
-        task = self.task_repo.create_task(
+        task = await self.task_repo.create_task(
             db,
             user_id=user_id,
             name=name,
@@ -45,7 +45,7 @@ class TaskService:
         )
 
         # Step 2 — Transition to QUEUED (system orchestration state)
-        self.queue_task(db, task_id=task.id)
+        await self.queue_task(db, task_id=task.id)
 
         # Step 3 — Send job to queue broker
         self.producer.enqueue_task(
@@ -60,35 +60,35 @@ class TaskService:
     # Lifecycle Transitions (called internally or by Celery workers)      #
     # ------------------------------------------------------------------ #
 
-    def queue_task(self, db: Session, *, task_id: str):
-        task = self._get_or_raise(db, task_id)
+    async def queue_task(self, db: AsyncSession, *, task_id: str):
+        task = await self._get_or_raise(db, task_id)
         self.engine.validate_transition(task.status, TaskStatus.QUEUED)
-        return self.task_repo.update_task_status(db, task_id, TaskStatus.QUEUED)
+        return await self.task_repo.update_task_status(db, task_id, TaskStatus.QUEUED)
 
-    def start_task_execution(self, db: Session, *, task_id: str):
-        task = self._get_or_raise(db, task_id)
+    async def start_task_execution(self, db: AsyncSession, *, task_id: str):
+        task = await self._get_or_raise(db, task_id)
         self.engine.validate_transition(task.status, TaskStatus.RUNNING)
-        return self.task_repo.update_task_status(db, task_id, TaskStatus.RUNNING)
+        return await self.task_repo.update_task_status(db, task_id, TaskStatus.RUNNING)
 
-    def complete_task_execution(self, db: Session, *, task_id: str):
-        task = self._get_or_raise(db, task_id)
+    async def complete_task_execution(self, db: AsyncSession, *, task_id: str):
+        task = await self._get_or_raise(db, task_id)
         self.engine.validate_transition(task.status, TaskStatus.SUCCESS)
-        return self.task_repo.update_task_status(db, task_id, TaskStatus.SUCCESS)
+        return await self.task_repo.update_task_status(db, task_id, TaskStatus.SUCCESS)
 
-    def fail_task_execution(
-        self, db: Session, *, task_id: str, error_message: str
+    async def fail_task_execution(
+        self, db: AsyncSession, *, task_id: str, error_message: str
     ):
-        task = self._get_or_raise(db, task_id)
+        task = await self._get_or_raise(db, task_id)
         self.engine.validate_transition(task.status, TaskStatus.FAILED)
 
         task.error_message = error_message
-        db.commit()
-        db.refresh(task)
+        await db.commit()
+        await db.refresh(task)
 
-        return self.task_repo.update_task_status(db, task_id, TaskStatus.FAILED)
+        return await self.task_repo.update_task_status(db, task_id, TaskStatus.FAILED)
 
-    def retry_task(self, db: Session, *, task_id: str):
-        task = self._get_or_raise(db, task_id)
+    async def retry_task(self, db: AsyncSession, *, task_id: str):
+        task = await self._get_or_raise(db, task_id)
 
         if task.retry_count >= task.max_retries:
             raise TaskExecutionError(
@@ -96,25 +96,25 @@ class TaskService:
             )
 
         self.engine.validate_transition(task.status, TaskStatus.RETRYING)
-        self.task_repo.increment_retry_count(db, task_id)
-        return self.task_repo.update_task_status(db, task_id, TaskStatus.RETRYING)
+        await self.task_repo.increment_retry_count(db, task_id)
+        return await self.task_repo.update_task_status(db, task_id, TaskStatus.RETRYING)
 
     # ------------------------------------------------------------------ #
     # Queries                                                             #
     # ------------------------------------------------------------------ #
 
-    def get_task(self, db: Session, task_id: str):
-        return self.task_repo.get_task_by_id(db, task_id)
+    async def get_task(self, db: AsyncSession, task_id: str):
+        return await self.task_repo.get_task_by_id(db, task_id)
 
-    def get_user_tasks(self, db: Session, user_id: str):
-        return self.task_repo.get_tasks_by_user(db, user_id)
+    async def get_user_tasks(self, db: AsyncSession, user_id: str):
+        return await self.task_repo.get_tasks_by_user(db, user_id)
 
     # ------------------------------------------------------------------ #
     # Internal helpers                                                    #
     # ------------------------------------------------------------------ #
 
-    def _get_or_raise(self, db: Session, task_id: str):
-        task = self.task_repo.get_task_by_id(db, task_id)
+    async def _get_or_raise(self, db: AsyncSession, task_id: str):
+        task = await self.task_repo.get_task_by_id(db, task_id)
         if not task:
             raise TaskNotFoundError(f"Task {task_id} not found")
         return task

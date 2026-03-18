@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.session import get_db
+from backend.db.session import get_async_db
 from backend.api.deps import get_current_user
 from backend.repositories.user_repository import UserRepository
 from backend.schemas.user import UserResponse, UserUpdate
@@ -17,7 +17,7 @@ user_repo = UserRepository()
 
 # Get Current User
 @router.get("/me", response_model=UserResponse)
-def get_me(
+async def get_me(
     current_user = Depends(get_current_user),
 ):
     return current_user
@@ -25,12 +25,12 @@ def get_me(
 
 # Update Current User
 @router.patch("/me", response_model=UserResponse)
-def update_me(
+async def update_me(
     payload: UserUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    updated_user = user_repo.update_user(
+    updated_user = await user_repo.update_user(
         db,
         current_user,
         **payload.model_dump(exclude_unset=True)
@@ -41,10 +41,10 @@ def update_me(
 
 # Delete Current User
 @router.delete("/me")
-def delete_me(
-    db: Session = Depends(get_db),
+async def delete_me(
+    db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
-    user_repo.delete_user(db, current_user)
+    await user_repo.delete_user(db, current_user)
 
     return {"status": "deleted"}
