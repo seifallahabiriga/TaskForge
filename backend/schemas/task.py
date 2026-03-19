@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 from backend.core.enums import TaskType, TaskStatus
+from uuid import UUID
 
 
 class TaskCreate(BaseModel):
@@ -22,7 +23,7 @@ class TaskStatusResponse(BaseModel):
 
 
 class TaskResponse(BaseModel):
-    id: str
+    id: UUID
     name: str
     task_type: TaskType
     priority: int

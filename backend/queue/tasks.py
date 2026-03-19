@@ -1,116 +1,95 @@
 import asyncio
 import time
 from celery import Task
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.queue.celery_app import celery_app
-from backend.db.session import get_async_db
+from backend.db.session import AsyncSessionLocal
 from backend.services.execution_service import ExecutionService
 from backend.services.task_service import TaskService
 from backend.workers.worker_app.job_runner import JobRunner
 
 
-class DatabaseTask(Task):
-
-    async def get_db(self) -> AsyncSession:
-        async for session in get_async_db():
-            return session
-
-    def after_return(self, status, retval, task_id, args, kwargs, einfo):
-        pass
-
-
 @celery_app.task(
     bind=True,
-    base=DatabaseTask,
     name="app.queue.tasks.execute_ai_task",
     max_retries=3,
     default_retry_delay=5,
 )
 def execute_ai_task(self, task_id: str, payload: dict):
+    asyncio.run(_run_task(self, task_id, payload))
 
-    db = asyncio.run(self.get_db())
 
-    task_service = TaskService()
-    execution_service = ExecutionService()
+async def _run_task(task_self, task_id: str, payload: dict):
 
-    # worker_id is None until worker registration is implemented
-    execution = asyncio.run(
-        execution_service.create_execution(
+    async with AsyncSessionLocal() as db:
+
+        task_service = TaskService()
+        execution_service = ExecutionService()
+
+        # worker_id is None until worker registration is implemented
+        execution = await execution_service.create_execution(
             db,
             task_id=task_id,
             worker_id=None,
         )
-    )
 
-    start_time = time.time()
+        start_time = time.time()
 
-    try:
-        # Transition task → RUNNING
-        asyncio.run(task_service.start_task_execution(db, task_id=task_id))
-        asyncio.run(
-            execution_service.mark_execution_running(
+        try:
+            # Transition task → RUNNING
+            await task_service.start_task_execution(db, task_id=task_id)
+            await execution_service.mark_execution_running(
                 db,
                 execution_id=str(execution.id),
             )
-        )
 
-        # Delegate compute to job runner
-        task = asyncio.run(task_service.get_task(db, task_id))
+            # Delegate compute to job runner
+            task = await task_service.get_task(db, task_id)
 
-        result = JobRunner.execute(
-            task_id=task_id,
-            task_type=task.task_type,
-            payload=payload,
-        )
+            result = JobRunner.execute(
+                task_id=task_id,
+                task_type=task.task_type,
+                payload=payload,
+            )
 
-        runtime_ms = int((time.time() - start_time) * 1000)
+            runtime_ms = int((time.time() - start_time) * 1000)
 
-        # Transition task → SUCCESS
-        asyncio.run(task_service.complete_task_execution(db, task_id=task_id))
-        asyncio.run(
-            execution_service.mark_execution_success(
+            # Transition task → SUCCESS
+            await task_service.complete_task_execution(db, task_id=task_id)
+            await execution_service.mark_execution_success(
                 db,
                 execution_id=str(execution.id),
                 runtime_ms=runtime_ms,
             )
-        )
 
-        return result
+            return result
 
-    except self.MaxRetriesExceededError as exc:
-        # Retries exhausted — final failure
-        runtime_ms = int((time.time() - start_time) * 1000)
+        except task_self.MaxRetriesExceededError as exc:
+            runtime_ms = int((time.time() - start_time) * 1000)
 
-        asyncio.run(
-            execution_service.mark_execution_failed(
+            await execution_service.mark_execution_failed(
                 db,
                 execution_id=str(execution.id),
                 error_message=str(exc),
                 runtime_ms=runtime_ms,
             )
-        )
-        asyncio.run(
-            task_service.fail_task_execution(
+            await task_service.fail_task_execution(
                 db,
                 task_id=task_id,
                 error_message=str(exc),
             )
-        )
-        raise
+            raise
 
-    except Exception as exc:
-        runtime_ms = int((time.time() - start_time) * 1000)
+        except Exception as exc:
+            runtime_ms = int((time.time() - start_time) * 1000)
 
-        asyncio.run(
-            execution_service.mark_execution_failed(
+            await execution_service.mark_execution_failed(
                 db,
                 execution_id=str(execution.id),
                 error_message=str(exc),
                 runtime_ms=runtime_ms,
             )
-        )
 
-        # Attempt retry — transitions task → RETRYING
-        asyncio.run(task_service.retry_task(db, task_id=task_id))
-        raise self.retry(exc=exc)
+            # Attempt retry — transitions task → RETRYING
+            await task_service.retry_task(db, task_id=task_id)
+            raise task_self.retry(exc=exc)
