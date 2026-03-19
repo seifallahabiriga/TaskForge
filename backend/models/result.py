@@ -16,7 +16,8 @@ class Result(Base):
     task_id: Mapped[str] = mapped_column(
         sa.UUID(as_uuid=True),
         sa.ForeignKey("tasks.id"),
-        nullable=False
+        nullable=False,
+        unique=True
     )
 
     execution_id: Mapped[str | None] = mapped_column(
@@ -27,7 +28,7 @@ class Result(Base):
 
     storage_path: Mapped[str] = mapped_column(
         sa.String,
-        nullable=False
+        nullable=True
     )
 
     output_summary: Mapped[dict | None] = mapped_column(

@@ -8,6 +8,7 @@ from backend.core.config import settings
 from backend.core.enums import TaskStatus
 from backend.services.execution_service import ExecutionService
 from backend.services.task_service import TaskService
+from backend.services.result_service import ResultService
 from backend.workers.worker_app.job_runner import JobRunner
 
 
@@ -36,6 +37,7 @@ async def _run_task(task_self, task_id: str, payload: dict):
 
             task_service = TaskService()
             execution_service = ExecutionService()
+            result_service = ResultService()
 
             # worker_id is None until worker registration is implemented
             execution = await execution_service.create_execution(
@@ -76,6 +78,14 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     db,
                     execution_id=str(execution.id),
                     runtime_ms=runtime_ms,
+                )
+                
+                # Store result
+                await result_service.store_result(
+                    db,
+                    task_id=task_id,
+                    execution_id=str(execution.id),
+                    output_summary=result if isinstance(result, dict) else {"output": result},
                 )
 
                 return result

@@ -6,7 +6,7 @@ class ResultResponse(BaseModel):
     id: str
     task_id: str
     execution_id: str | None
-    storage_path: str
+    storage_path: str | None
     output_summary: dict | None
     created_at: datetime
 

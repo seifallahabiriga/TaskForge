@@ -31,3 +31,6 @@ class TaskExecutionError(TaskException):
 
 class ExecutionNotFoundError(Exception):
     pass
+
+class ResultNotFoundError(Exception):
+    pass
