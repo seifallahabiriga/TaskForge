@@ -56,7 +56,7 @@ class ExecutionService:
     ):
         execution = await self._get_or_raise(db, execution_id)
 
-        execution.status = ExecutionStatus.RUNNING
+        execution.status = ExecutionStatus.STARTED
         execution.started_at = datetime.utcnow()
 
         await db.commit()
@@ -74,7 +74,7 @@ class ExecutionService:
     ):
         execution = await self._get_or_raise(db, execution_id)
 
-        execution.status = ExecutionStatus.SUCCESS
+        execution.status = ExecutionStatus.COMPLETED
         execution.completed_at = datetime.utcnow()
         execution.runtime_ms = runtime_ms
         execution.metrics = metrics
