@@ -64,10 +64,10 @@ async def _run_task(task_self, task_id: str, payload: dict):
                 # Delegate compute to job runner
                 task = await task_service.get_task(db, task_id)
 
-                result = JobRunner.execute(
-                    task_id=task_id,
+                result = await JobRunner.get_coroutine(
                     task_type=task.task_type,
                     payload=payload,
+                    model_version_id=str(task.model_version_id) if task.model_version_id else None,
                 )
 
                 runtime_ms = int((time.time() - start_time) * 1000)

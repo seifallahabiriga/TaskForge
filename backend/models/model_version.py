@@ -1,6 +1,5 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
-
 from backend.db.base import Base, generate_uuid
 
 
@@ -10,25 +9,23 @@ class ModelVersion(Base):
     id: Mapped[str] = mapped_column(
         sa.UUID(as_uuid=True),
         primary_key=True,
-        default=generate_uuid
+        default=generate_uuid,
     )
-
     name: Mapped[str] = mapped_column(sa.String)
 
-    version_tag: Mapped[str] = mapped_column(sa.String)
+    model_id: Mapped[str] = mapped_column(sa.String)           # e.g. "meta-llama/llama-3-8b-instruct"
 
-    framework: Mapped[str] = mapped_column(sa.String)
+    provider: Mapped[str] = mapped_column(sa.String)           # e.g. "openrouter", "huggingface"
 
-    artifact_path: Mapped[str] = mapped_column(sa.String)
+    task_type: Mapped[str] = mapped_column(sa.String)          # e.g. "INFERENCE", "ANALYSIS"
 
-    checksum: Mapped[str] = mapped_column(sa.String)
+    config: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
-    is_active: Mapped[bool] = mapped_column(
-        sa.Boolean,
-        default=True
-    )
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, default=False)
 
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, default=True)
+    
     created_at: Mapped[sa.DateTime] = mapped_column(
         sa.DateTime,
-        server_default=sa.func.now()
+        server_default=sa.func.now(),
     )

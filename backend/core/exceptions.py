@@ -34,3 +34,22 @@ class ExecutionNotFoundError(Exception):
 
 class ResultNotFoundError(Exception):
     pass
+
+class ModelNotFoundError(Exception):
+    pass
+ 
+class ModelInferenceError(Exception):
+    pass
+
+class AllProvidersFailedError(Exception):
+    """Raised by the router when every provider in the chain has failed."""
+    def __init__(self, errors: list):
+        self.errors = errors
+        summary = "; ".join(str(e) for e in errors)
+        super().__init__(f"All providers failed: {summary}")
+
+class ModelNotFoundError(Exception):
+    """Raised when a ModelVersion row doesn't exist or no default is configured."""
+
+class ModelInferenceError(Exception):
+    """Raised when inference fails across all providers."""
