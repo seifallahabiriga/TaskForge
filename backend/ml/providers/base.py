@@ -1,46 +1,18 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from core.exceptions import AllProvidersFailedError
-
-# ------------------------------------------------------------------ #
-# Provider I/O contracts                                              #
-# ------------------------------------------------------------------ #
-
-@dataclass
-class CompletionRequest:
-    prompt: str
-    model_id: str
-    max_tokens: int = 1024
-    temperature: float = 0.7
-    system_prompt: str | None = None
-    extra_params: dict = field(default_factory=dict)
-
-
-@dataclass
-class CompletionResponse:
-    text: str
-    model_id: str
-    provider: str
-    prompt_tokens: int
-    completion_tokens: int
-    latency_ms: float
-
-
-@dataclass
-class EmbeddingRequest:
-    texts: list[str]
-    model_id: str
-    extra_params: dict = field(default_factory=dict)
-
-
-@dataclass
-class EmbeddingResponse:
-    embeddings: list[list[float]]
-    model_id: str
-    provider: str
-    token_count: int
-    latency_ms: float
-
+from backend.schemas.provider import (
+    CompletionRequest,
+    CompletionResponse,
+    EmbeddingRequest,
+    EmbeddingResponse
+)
+from backend.core.exceptions import (
+    ProviderError,
+    ProviderAuthError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+    AllProvidersFailedError,
+)
 
 # ------------------------------------------------------------------ #
 # Abstract base — all providers must implement these                  #
@@ -78,30 +50,3 @@ class BaseProvider(ABC):
         is misconfigured (e.g. missing API key) without making a network call.
         """
         ...
-
-
-# ------------------------------------------------------------------ #
-# Provider-level exceptions                                           #
-# ------------------------------------------------------------------ #
-
-class ProviderError(Exception):
-    """Base class for all provider failures."""
-    def __init__(self, provider: str, message: str):
-        self.provider = provider
-        super().__init__(f"[{provider}] {message}")
-
-
-class ProviderAuthError(ProviderError):
-    """Invalid or missing API key."""
-
-
-class ProviderRateLimitError(ProviderError):
-    """Provider is rate-limiting this account."""
-
-
-class ProviderTimeoutError(ProviderError):
-    """Provider did not respond within the allowed window."""
-
-
-class ProviderUnavailableError(ProviderError):
-    """Provider returned 5xx or is unreachable."""

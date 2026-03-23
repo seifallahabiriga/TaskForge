@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from backend.queue.celery_app import celery_app
 from backend.core.config import settings
 from backend.core.enums import TaskStatus
+from backend.core.exceptions import TaskExecutionError
 from backend.services.execution_service import ExecutionService
 from backend.services.task_service import TaskService
 from backend.services.result_service import ResultService
@@ -61,7 +62,7 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     execution_id=str(execution.id),
                 )
 
-                # Delegate compute to job runner
+                # Fetch task again to get task_type and model_version_id
                 task = await task_service.get_task(db, task_id)
 
                 result = await JobRunner.get_coroutine(
@@ -79,7 +80,7 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     execution_id=str(execution.id),
                     runtime_ms=runtime_ms,
                 )
-                
+
                 # Store result
                 await result_service.store_result(
                     db,
@@ -116,9 +117,17 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     runtime_ms=runtime_ms,
                 )
 
-                # Transition task → RETRYING before handing back to Celery
-                await task_service.retry_task(db, task_id=task_id)
-                raise task_self.retry(exc=exc)
+                try:
+                    await task_service.retry_task(db, task_id=task_id)
+                    raise task_self.retry(exc=exc)
+
+                except TaskExecutionError:
+                    # Max retries exhausted — mark as permanently FAILED
+                    await task_service.fail_task_execution(
+                        db,
+                        task_id=task_id,
+                        error_message=f"Max retries exhausted. Last error: {exc}",
+                    )
 
     finally:
         await engine.dispose()

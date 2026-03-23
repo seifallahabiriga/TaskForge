@@ -8,12 +8,12 @@ class TaskCreate(BaseModel):
     name: str
     task_type: TaskType
     priority: int = 0
-    model_version_id: str | None = None
+    model_version_id: UUID | None = None
     input_payload: dict
 
 
 class TaskStatusResponse(BaseModel):
-    id: str
+    id: UUID
     status: TaskStatus
     error_message: str | None
     retry_count: int
@@ -34,5 +34,6 @@ class TaskResponse(BaseModel):
     submitted_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+
     class Config:
         from_attributes = True

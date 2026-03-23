@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.db.session import get_async_db
 from backend.core.security import decode_token
 from backend.repositories.user_repository import UserRepository
+from backend.core.exceptions import PermissionDeniedError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -46,3 +47,8 @@ async def get_current_user(
         )
 
     return user
+
+async def require_admin(current_user = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    return current_user

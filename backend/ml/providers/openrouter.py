@@ -2,16 +2,14 @@ import time
 import httpx
 
 from backend.core.config import settings
-from backend.ml.providers.base import (
-    BaseProvider,
-    CompletionRequest,
-    CompletionResponse,
-    EmbeddingRequest,
-    EmbeddingResponse,
-    ProviderAuthError,
-    ProviderRateLimitError,
-    ProviderTimeoutError,
-    ProviderUnavailableError,
+from backend.ml.providers.base import BaseProvider
+from backend.schemas.provider import (
+    CompletionRequest, CompletionResponse,
+    EmbeddingRequest, EmbeddingResponse,
+)
+from backend.core.exceptions import (
+    ProviderAuthError, ProviderRateLimitError,
+    ProviderTimeoutError, ProviderUnavailableError,
 )
 
 

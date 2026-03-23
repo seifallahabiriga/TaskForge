@@ -1,12 +1,13 @@
 from pydantic import BaseModel
 from datetime import datetime
+from uuid import UUID
 from backend.core.enums import ExecutionStatus
 
 
 class ExecutionResponse(BaseModel):
-    id: str
-    task_id: str
-    worker_id: str | None
+    id: UUID
+    task_id: UUID
+    worker_id: UUID | None
     status: ExecutionStatus
     attempt_number: int
     runtime_ms: int | None

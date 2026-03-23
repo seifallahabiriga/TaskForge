@@ -10,6 +10,7 @@ from backend.core.security import (
     decode_token,
     validate_token_type,
 )
+from backend.core.exceptions import UserAlreadyExistsError, InvalidCredentialsError
 from backend.core.config import settings
 
 
@@ -30,7 +31,7 @@ class AuthService:
         # Check if user exists
         existing_user = await self.user_repo.get_by_email(db, email)
         if existing_user:
-            raise ValueError("User already exists")
+            raise UserAlreadyExistsError("User already exists")
 
         # Hash password
         hashed_password = hash_password(password)
@@ -65,10 +66,9 @@ class AuthService:
         user = await self.user_repo.get_by_email(db, email)
 
         if not user:
-            raise ValueError("Invalid credentials")
-
+            raise InvalidCredentialsError("Invalid credentials")
         if not verify_password(password, user.password_hash):
-            raise ValueError("Invalid credentials")
+            raise InvalidCredentialsError("Invalid credentials")
 
         access_token = create_access_token(str(user.id))
         refresh_token = create_refresh_token(str(user.id))

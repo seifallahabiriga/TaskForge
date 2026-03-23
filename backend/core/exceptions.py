@@ -41,6 +41,31 @@ class ModelNotFoundError(Exception):
 class ModelInferenceError(Exception):
     pass
 
+class PermissionDeniedError(Exception):
+    """Raised when a user does not have permission to perform an action."""
+
+class ProviderError(Exception):
+    """Base class for all provider failures."""
+    def __init__(self, provider: str, message: str):
+        self.provider = provider
+        super().__init__(f"[{provider}] {message}")
+
+
+class ProviderAuthError(ProviderError):
+    """Invalid or missing API key."""
+
+
+class ProviderRateLimitError(ProviderError):
+    """Provider is rate-limiting this account."""
+
+
+class ProviderTimeoutError(ProviderError):
+    """Provider did not respond within the allowed window."""
+
+
+class ProviderUnavailableError(ProviderError):
+    """Provider returned 5xx or is unreachable."""
+    
 class AllProvidersFailedError(Exception):
     """Raised by the router when every provider in the chain has failed."""
     def __init__(self, errors: list):

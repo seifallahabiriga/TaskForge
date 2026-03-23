@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.session import get_async_db
-from backend.api.deps import get_current_user
+from backend.api.deps import get_current_user, require_admin
 from backend.schemas.task import TaskCreate, TaskResponse, TaskStatusResponse
 from backend.services.task_service import TaskService
 from backend.core.exceptions import TaskNotFoundError, TaskExecutionError
@@ -96,7 +96,7 @@ async def get_user_tasks(
 async def start_task(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_admin),
 ):
     # Ownership check BEFORE mutation
     task = await task_service.get_task(db, task_id)
@@ -115,7 +115,7 @@ async def start_task(
 async def complete_task(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_admin),
 ):
     task = await task_service.get_task(db, task_id)
     if not task:
@@ -134,7 +134,7 @@ async def fail_task(
     task_id: str,
     error_message: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_admin),
 ):
     task = await task_service.get_task(db, task_id)
     if not task:
@@ -152,7 +152,7 @@ async def fail_task(
 async def retry_task(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_admin),
 ):
     task = await task_service.get_task(db, task_id)
     if not task:

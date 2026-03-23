@@ -62,8 +62,7 @@ async def refresh(
 ):
     try:
         return await auth_service.refresh_tokens(
-            db,
-            refresh_token=payload.refresh_token,
+            refresh_token=payload.refresh_token
         )
 
     except InvalidTokenError:
