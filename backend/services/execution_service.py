@@ -105,33 +105,6 @@ class ExecutionService:
         return execution
 
     # ------------------------------------------------------------------ #
-    # Core Compute                                                        #
-    # ------------------------------------------------------------------ #
-
-    async def run(
-        self,
-        db: AsyncSession,
-        *,
-        task_id: str,
-        payload: dict,
-    ):
-        task = await self.task_repo.get_task_by_id(db, task_id)
-        if not task:
-            raise TaskNotFoundError(f"Task {task_id} not found")
-
-        try:
-            # enforce source of truth for task_type
-            payload["task_type"] = task.task_type
-
-            return JobRunner.execute(
-                task_id=task_id,
-                payload=payload,
-            )
-
-        except Exception as e:
-            raise TaskExecutionError(f"Execution failed: {str(e)}")
-
-    # ------------------------------------------------------------------ #
     # Queries                                                             #
     # ------------------------------------------------------------------ #
 

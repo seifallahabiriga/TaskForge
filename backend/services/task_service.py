@@ -81,11 +81,15 @@ class TaskService:
         task = await self._get_or_raise(db, task_id)
         self.engine.validate_transition(task.status, TaskStatus.FAILED)
 
+        # Set both fields
         task.error_message = error_message
+        task.status = TaskStatus.FAILED
+
+        # Commit once
         await db.commit()
         await db.refresh(task)
 
-        return await self.task_repo.update_task_status(db, task_id, TaskStatus.FAILED)
+        return task
 
     async def retry_task(self, db: AsyncSession, *, task_id: str):
         task = await self._get_or_raise(db, task_id)

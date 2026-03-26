@@ -10,28 +10,28 @@ class AuditLog(Base):
     id: Mapped[str] = mapped_column(
         sa.UUID(as_uuid=True),
         primary_key=True,
-        default=generate_uuid
+        default=generate_uuid,
     )
-
-    user_id: Mapped[str] = mapped_column(
+    user_id: Mapped[str | None] = mapped_column(
         sa.UUID(as_uuid=True),
-        sa.ForeignKey("users.id")
+        sa.ForeignKey("users.id"),
+        nullable=True,
     )
 
-    action: Mapped[str] = mapped_column(sa.String)
+    action: Mapped[str] = mapped_column(sa.String)        # e.g. "task.created"
 
-    entity_type: Mapped[str] = mapped_column(sa.String)
+    entity_type: Mapped[str] = mapped_column(sa.String)   # e.g. "task"
 
-    entity_id: Mapped[str] = mapped_column(sa.UUID)
-
-    event_metadata: Mapped[dict | None] = mapped_column(
-        sa.JSON,
-        nullable=True
+    entity_id: Mapped[str | None] = mapped_column(
+        sa.UUID(as_uuid=True),
+        nullable=True,
     )
 
-    ip_address: Mapped[str] = mapped_column(sa.String)
+    event_metadata: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
+    ip_address: Mapped[str | None] = mapped_column(sa.String, nullable=True)
+    
     timestamp: Mapped[sa.DateTime] = mapped_column(
         sa.DateTime,
-        server_default=sa.func.now()
+        server_default=sa.func.now(),
     )

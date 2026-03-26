@@ -98,12 +98,9 @@ async def start_task(
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(require_admin),
 ):
-    # Ownership check BEFORE mutation
     task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    if str(task.user_id) != str(current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
         return await task_service.start_task_execution(db, task_id=task_id)
@@ -120,8 +117,6 @@ async def complete_task(
     task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    if str(task.user_id) != str(current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
         return await task_service.complete_task_execution(db, task_id=task_id)
@@ -139,11 +134,11 @@ async def fail_task(
     task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    if str(task.user_id) != str(current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
-        return await task_service.fail_task_execution(db, task_id=task_id, error_message=error_message)
+        return await task_service.fail_task_execution(
+            db, task_id=task_id, error_message=error_message
+        )
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
@@ -157,8 +152,6 @@ async def retry_task(
     task = await task_service.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    if str(task.user_id) != str(current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
         return await task_service.retry_task(db, task_id=task_id)
