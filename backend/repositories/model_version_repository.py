@@ -30,6 +30,23 @@ class ModelVersionRepository:
             )
         )
         return result.scalars().first()
+    
+    async def get_default_for_provider_and_task_type(
+        self,
+        db: AsyncSession,
+        provider: str,
+        task_type: str,
+    ) -> ModelVersion | None:
+        result = await db.execute(
+            select(ModelVersion)
+            .where(
+                ModelVersion.provider == provider,
+                ModelVersion.task_type == task_type,
+                ModelVersion.is_active == True,
+            )
+            .order_by(ModelVersion.created_at.asc())
+        )
+        return result.scalars().first()
 
     async def list_by_task_type(
         self,

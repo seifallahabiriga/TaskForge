@@ -1,14 +1,13 @@
 import logging
 
-from backend.ml.providers.base import (
-    BaseProvider,
+from backend.ml.providers.base import BaseProvider
+from backend.schemas.provider import (
     CompletionRequest,
     CompletionResponse,
     EmbeddingRequest,
     EmbeddingResponse,
-    ProviderError
 )
-from backend.core.exceptions import AllProvidersFailedError
+from backend.core.exceptions import ProviderError, AllProvidersFailedError
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +15,17 @@ logger = logging.getLogger(__name__)
 class ProviderRouter:
     """
     Executes completion and embedding requests against an ordered chain
-    of providers.  The first provider that succeeds wins.  If a provider
-    raises any ProviderError the router logs the failure, records it, and
-    moves on to the next provider.  When every provider fails it raises
-    AllProvidersFailedError with the full error list attached.
+    of providers. Each provider receives its own CompletionRequest so
+    model_id is resolved per-provider — no provider ever receives another
+    provider's model identifier.
 
     Usage:
-        router = ProviderRouter(providers=[openrouter, huggingface])
-        response = await router.complete(request)
+        router = ProviderRouter(providers=[groq, gemini, huggingface])
+        response = await router.complete({
+            "groq": groq_request,
+            "gemini": gemini_request,
+            "huggingface": hf_request,
+        })
     """
 
     def __init__(self, providers: list[BaseProvider]):
@@ -35,7 +37,10 @@ class ProviderRouter:
     # Public interface                                                     #
     # ------------------------------------------------------------------ #
 
-    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+    async def complete(
+        self,
+        requests: dict[str, CompletionRequest],
+    ) -> CompletionResponse:
         errors: list[ProviderError] = []
 
         for provider in self._providers:
@@ -43,6 +48,14 @@ class ProviderRouter:
                 logger.warning(
                     "provider.skip",
                     extra={"provider": provider.provider_name, "reason": "not_available"},
+                )
+                continue
+
+            request = requests.get(provider.provider_name)
+            if not request:
+                logger.warning(
+                    "provider.skip",
+                    extra={"provider": provider.provider_name, "reason": "no_request_configured"},
                 )
                 continue
 
@@ -67,7 +80,10 @@ class ProviderRouter:
 
         raise AllProvidersFailedError(errors)
 
-    async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+    async def embed(
+        self,
+        requests: dict[str, EmbeddingRequest],
+    ) -> EmbeddingResponse:
         errors: list[ProviderError] = []
 
         for provider in self._providers:
@@ -75,6 +91,14 @@ class ProviderRouter:
                 logger.warning(
                     "provider.skip",
                     extra={"provider": provider.provider_name, "reason": "not_available"},
+                )
+                continue
+
+            request = requests.get(provider.provider_name)
+            if not request:
+                logger.warning(
+                    "provider.skip",
+                    extra={"provider": provider.provider_name, "reason": "no_request_configured"},
                 )
                 continue
 

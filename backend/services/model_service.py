@@ -4,24 +4,28 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 
 from backend.core.config import settings
 from backend.repositories.model_version_repository import ModelVersionRepository
-from backend.ml.providers.openrouter import OpenRouterProvider
+from backend.ml.providers.groq import GroqProvider
+from backend.ml.providers.gemini import GeminiProvider
 from backend.ml.providers.huggingface import HuggingFaceProvider
+from backend.ml.providers.openrouter import OpenRouterProvider
 from backend.ml.router import ProviderRouter
-from backend.ml.providers.base import (
+from backend.schemas.provider import (
     CompletionRequest,
     CompletionResponse,
     EmbeddingRequest,
-    EmbeddingResponse
+    EmbeddingResponse,
 )
-from backend.core.exceptions import AllProvidersFailedError
-
-from backend.core.enums import TaskType
 from backend.core.exceptions import (
+    AllProvidersFailedError,
     ModelNotFoundError,
     ModelInferenceError,
 )
+from backend.core.enums import TaskType
 
 logger = logging.getLogger(__name__)
+
+# Ordered chain — first available provider that succeeds wins
+_PROVIDER_CHAIN = ["groq", "gemini", "huggingface", "openrouter"]
 
 
 class ModelService:
@@ -30,8 +34,10 @@ class ModelService:
         self.model_version_repo = ModelVersionRepository()
         self._router = ProviderRouter(
             providers=[
-                OpenRouterProvider(),     # primary
-                HuggingFaceProvider(),    # fallback
+                GroqProvider(),         # primary   — fast, generous free tier
+                GeminiProvider(),       # secondary — solid free tier
+                HuggingFaceProvider(),  # fallback
+                OpenRouterProvider(),   # last resort
             ]
         )
 
@@ -72,19 +78,13 @@ class ModelService:
         input_payload: dict,
         model_version_id: str | None,
     ) -> dict:
-        model_version = await self._resolve_model(db, model_version_id, TaskType.INFERENCE)
-
-        request = CompletionRequest(
-            prompt=input_payload["prompt"],
-            model_id=model_version.model_id,
-            max_tokens=input_payload.get("max_tokens", settings.API_INFERENCE_TOKEN_LIMIT),
-            temperature=input_payload.get("temperature", settings.API_INFERENCE_TEMPERATURE),
-            system_prompt=input_payload.get("system_prompt"),
-            extra_params=input_payload.get("extra_params", {}),
+        requests = await self._build_requests(
+            db=db,
+            task_type=TaskType.INFERENCE,
+            input_payload=input_payload,
+            model_version_id=model_version_id,
         )
-
-        response = await self._complete_or_raise(request)
-
+        response = await self._complete_or_raise(requests)
         return {
             "text": response.text,
             "model_id": response.model_id,
@@ -100,28 +100,14 @@ class ModelService:
         input_payload: dict,
         model_version_id: str | None,
     ) -> dict:
-        """
-        Analysis tasks send a structured prompt and expect a JSON-parseable
-        response from the model. Expand as needed (classification,
-        summarisation, extraction, etc.).
-        """
-        model_version = await self._resolve_model(db, model_version_id, TaskType.ANALYSIS)
-
-        system_prompt = input_payload.get(
-            "system_prompt",
-            "You are an expert analyst. Respond only with a valid JSON object.",
+        requests = await self._build_requests(
+            db=db,
+            task_type=TaskType.ANALYSIS,
+            input_payload=input_payload,
+            model_version_id=model_version_id,
+            default_system_prompt="You are an expert analyst. Respond only with a valid JSON object.",
         )
-        request = CompletionRequest(
-            prompt=input_payload["prompt"],
-            model_id=model_version.model_id,
-            max_tokens=input_payload.get("max_tokens", settings.API_ANALYSIS_TOKEN_LIMIT),
-            temperature=input_payload.get("temperature", settings.API_ANALYSIS_TEMPERATURE),
-            system_prompt=system_prompt,
-            extra_params=input_payload.get("extra_params", {}),
-        )
-
-        response = await self._complete_or_raise(request)
-
+        response = await self._complete_or_raise(requests)
         return {
             "analysis": response.text,
             "model_id": response.model_id,
@@ -140,59 +126,112 @@ class ModelService:
         model_version_id: str | None = None,
     ) -> EmbeddingResponse:
         async with self._make_session() as db:
-            model_version = await self._resolve_model(db, model_version_id, task_type="embedding")
+            requests = {}
+            for provider_name in _PROVIDER_CHAIN:
+                model_version = await self.model_version_repo.get_default_for_provider_and_task_type(
+                    db, provider_name, "embedding"
+                )
+                if model_version:
+                    requests[provider_name] = EmbeddingRequest(
+                        texts=texts,
+                        model_id=model_version.model_id,
+                    )
 
-        request = EmbeddingRequest(
-            texts=texts,
-            model_id=model_version.model_id,
-        )
+        if not requests:
+            raise ModelInferenceError("No embedding models configured.")
 
         try:
-            return await self._router.embed(request)
+            return await self._router.embed(requests)
         except AllProvidersFailedError as exc:
             raise ModelInferenceError(
                 f"Embedding failed across all providers: {exc}"
             ) from exc
 
     # ------------------------------------------------------------------ #
+    # Per-provider request building                                       #
+    # ------------------------------------------------------------------ #
+
+    async def _build_requests(
+        self,
+        db: AsyncSession,
+        task_type: str,
+        input_payload: dict,
+        model_version_id: str | None,
+        default_system_prompt: str | None = None,
+    ) -> dict[str, CompletionRequest]:
+        """
+        Resolves one model per provider and builds a CompletionRequest
+        for each. The router will try them in chain order, each with
+        its own correct model_id.
+        """
+        system_prompt = input_payload.get("system_prompt", default_system_prompt)
+        requests = {}
+
+        for provider_name in _PROVIDER_CHAIN:
+            model_version = await self._resolve_model_for_provider(
+                db=db,
+                provider_name=provider_name,
+                task_type=task_type,
+                explicit_model_version_id=model_version_id,
+            )
+            if model_version:
+                requests[provider_name] = CompletionRequest(
+                    prompt=input_payload["prompt"],
+                    model_id=model_version.model_id,
+                    max_tokens=input_payload.get("max_tokens", 1024),
+                    temperature=input_payload.get("temperature", 0.7),
+                    system_prompt=system_prompt,
+                    extra_params=input_payload.get("extra_params", {}),
+                )
+
+        if not requests:
+            raise ModelInferenceError(
+                f"No models configured for task type '{task_type}'."
+            )
+
+        return requests
+
+    # ------------------------------------------------------------------ #
     # Model version resolution                                            #
     # ------------------------------------------------------------------ #
 
-    async def _resolve_model(
+    async def _resolve_model_for_provider(
         self,
         db: AsyncSession,
-        model_version_id: str | None,
+        provider_name: str,
         task_type: str,
+        explicit_model_version_id: str | None,
     ):
-        if model_version_id:
-            model_version = await self.model_version_repo.get_by_id(db, model_version_id)
-            if not model_version:
-                raise ModelNotFoundError(
-                    f"ModelVersion {model_version_id} not found."
-                )
-            return model_version
-
-        model_version = await self.model_version_repo.get_default_for_task_type(
-            db, task_type
-        )
-        if not model_version:
-            raise ModelNotFoundError(
-                f"No default model configured for task type '{task_type}'. "
-                "Seed the model_versions table or pass an explicit model_version_id."
+        """
+        If an explicit model_version_id is given and belongs to this provider,
+        use it. Otherwise fall back to the active model for this provider+task_type.
+        Returns None if no model is configured for this provider — caller skips it.
+        """
+        if explicit_model_version_id:
+            model_version = await self.model_version_repo.get_by_id(
+                db, explicit_model_version_id
             )
-        return model_version
+            if model_version and model_version.provider == provider_name:
+                return model_version
+
+        return await self.model_version_repo.get_default_for_provider_and_task_type(
+            db, provider_name, task_type
+        )
 
     # ------------------------------------------------------------------ #
     # Internal helpers                                                    #
     # ------------------------------------------------------------------ #
 
-    async def _complete_or_raise(self, request: CompletionRequest) -> CompletionResponse:
+    async def _complete_or_raise(
+        self,
+        requests: dict[str, CompletionRequest],
+    ) -> CompletionResponse:
         try:
-            return await self._router.complete(request)
+            return await self._router.complete(requests)
         except AllProvidersFailedError as exc:
             logger.error(
                 "model_service.inference.all_failed",
-                extra={"model_id": request.model_id, "errors": str(exc)},
+                extra={"errors": str(exc)},
             )
             raise ModelInferenceError(
                 f"Inference failed across all providers: {exc}"

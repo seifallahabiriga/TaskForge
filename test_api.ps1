@@ -62,9 +62,9 @@ try {
 }
 
 # 4. Create 3 Tasks
-Write-Host "`n[4] Creating 3 Tasks (INFERENCE, ANALYSIS, TRAINING)..." -ForegroundColor Yellow
+Write-Host "`n[4] Creating 3 Tasks (INFERENCE, ANALYSIS)..." -ForegroundColor Yellow
 
-$taskTypes = @("INFERENCE", "ANALYSIS", "TRAINING")
+$taskTypes = @("INFERENCE", "ANALYSIS")
 $createdTasks = @()
 
 foreach ($type in $taskTypes) {

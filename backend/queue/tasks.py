@@ -16,8 +16,8 @@ from backend.workers.worker_app.job_runner import JobRunner
 @celery_app.task(
     bind=True,
     name="app.queue.tasks.execute_ai_task",
-    max_retries=3,
-    default_retry_delay=5,
+    max_retries=1,
+    default_retry_delay=10,  # 10 seconds
 )
 def execute_ai_task(self, task_id: str, payload: dict):
     asyncio.run(_run_task(self, task_id, payload))

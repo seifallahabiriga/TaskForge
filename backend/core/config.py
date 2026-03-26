@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     CELERY_RETRY_DELAY_SECONDS: int = 5 # Delay between retries (seconds)
 
     # Third-party API keys
-    OPENROUTER_API_KEY: str          # OpenRouter API key for primary inference provider
-    HUGGINGFACE_API_KEY: str         # HuggingFace API key for fallback inference and embeddings provider
+    OPENROUTER_API_KEY: str          # OpenRouter API key
+    HUGGINGFACE_API_KEY: str         # HuggingFace API key
+    GROQ_API_KEY: str                # Groq API key
+    GEMINI_API_KEY: str              # Google Gemini API key
     APP_URL: str = "http://localhost:8000"   # shown in OpenRouter dashboard
     APP_NAME: str = "TaskForge"
 

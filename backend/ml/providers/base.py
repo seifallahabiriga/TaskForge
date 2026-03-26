@@ -14,9 +14,6 @@ from backend.core.exceptions import (
     AllProvidersFailedError,
 )
 
-# ------------------------------------------------------------------ #
-# Abstract base — all providers must implement these                  #
-# ------------------------------------------------------------------ #
 
 class BaseProvider(ABC):
     """
@@ -35,13 +32,15 @@ class BaseProvider(ABC):
         """
         ...
 
-    @abstractmethod
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """
-        Generate embeddings for a list of texts.
-        Must raise ProviderError on any API or network failure.
+        Default — providers that don't support embeddings don't need to override.
+        The router will skip to the next provider automatically.
         """
-        ...
+        raise ProviderUnavailableError(
+            self.provider_name,
+            f"{self.provider_name} does not support embeddings.",
+        )
 
     @abstractmethod
     def is_available(self) -> bool:
