@@ -7,9 +7,14 @@ from backend.schemas.task import TaskCreate, TaskResponse, TaskStatusResponse
 from backend.services.task_service import TaskService
 from backend.core.exceptions import TaskNotFoundError, TaskExecutionError
 
+from fastapi import Request
+from backend.services.audit_log_service import AuditService
+from backend.api.deps import get_ip
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
+
 task_service = TaskService()
+audit_service = AuditService()
 
 
 # ------------------------------------------------------------------ #
@@ -19,6 +24,7 @@ task_service = TaskService()
 @router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
     payload: TaskCreate,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
 ):
@@ -31,6 +37,15 @@ async def create_task(
         priority=payload.priority,
         model_version_id=payload.model_version_id,
     )
+
+    await audit_service.log_task_created(
+        db,
+        user_id=str(current_user.id),
+        task_id=str(task.id),
+        task_type=str(task.task_type),
+        ip_address=get_ip(request),
+    )
+
     return task
 
 
@@ -95,6 +110,7 @@ async def get_user_tasks(
 @router.post("/{task_id}/start", response_model=TaskResponse)
 async def start_task(
     task_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(require_admin),
 ):
@@ -103,7 +119,17 @@ async def start_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
     try:
-        return await task_service.start_task_execution(db, task_id=task_id)
+        result = await task_service.start_task_execution(db, task_id=task_id)
+
+        await audit_service.log_admin_lifecycle_override(
+            db,
+            admin_id=str(current_user.id),
+            task_id=task_id,
+            action="start",
+            ip_address=get_ip(request),
+        )
+
+        return result
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
@@ -111,6 +137,7 @@ async def start_task(
 @router.post("/{task_id}/complete", response_model=TaskResponse)
 async def complete_task(
     task_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(require_admin),
 ):
@@ -119,7 +146,17 @@ async def complete_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
     try:
-        return await task_service.complete_task_execution(db, task_id=task_id)
+        result = await task_service.complete_task_execution(db, task_id=task_id)
+
+        await audit_service.log_admin_lifecycle_override(
+            db,
+            admin_id=str(current_user.id),
+            task_id=task_id,
+            action="complete",
+            ip_address=get_ip(request),
+        )
+
+        return result
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
@@ -128,6 +165,7 @@ async def complete_task(
 async def fail_task(
     task_id: str,
     error_message: str,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(require_admin),
 ):
@@ -136,9 +174,19 @@ async def fail_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
     try:
-        return await task_service.fail_task_execution(
+        result = await task_service.fail_task_execution(
             db, task_id=task_id, error_message=error_message
         )
+
+        await audit_service.log_admin_lifecycle_override(
+            db,
+            admin_id=str(current_user.id),
+            task_id=task_id,
+            action="fail",
+            ip_address=get_ip(request),
+        )
+
+        return result
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
@@ -146,6 +194,7 @@ async def fail_task(
 @router.post("/{task_id}/retry", response_model=TaskResponse)
 async def retry_task(
     task_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(require_admin),
 ):
@@ -154,7 +203,17 @@ async def retry_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
     try:
-        return await task_service.retry_task(db, task_id=task_id)
+        result = await task_service.retry_task(db, task_id=task_id)
+
+        await audit_service.log_admin_lifecycle_override(
+            db,
+            admin_id=str(current_user.id),
+            task_id=task_id,
+            action="retry",
+            ip_address=get_ip(request),
+        )
+
+        return result
     except TaskExecutionError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 

@@ -10,8 +10,8 @@ from backend.core.exceptions import TaskExecutionError
 from backend.services.execution_service import ExecutionService
 from backend.services.task_service import TaskService
 from backend.services.result_service import ResultService
+from backend.services.audit_log_service import AuditService
 from backend.workers.worker_app.job_runner import JobRunner
-
 
 @celery_app.task(
     bind=True,
@@ -39,8 +39,8 @@ async def _run_task(task_self, task_id: str, payload: dict):
             task_service = TaskService()
             execution_service = ExecutionService()
             result_service = ResultService()
+            audit_service = AuditService()
 
-            # worker_id is None until worker registration is implemented
             execution = await execution_service.create_execution(
                 db,
                 task_id=task_id,
@@ -50,10 +50,8 @@ async def _run_task(task_self, task_id: str, payload: dict):
             start_time = time.time()
 
             try:
-                # Fetch current task status before transitioning
                 task = await task_service.get_task(db, task_id)
 
-                # Only transition to RUNNING if not already RUNNING (handles retries)
                 if task.status != TaskStatus.RUNNING:
                     await task_service.start_task_execution(db, task_id=task_id)
 
@@ -62,7 +60,6 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     execution_id=str(execution.id),
                 )
 
-                # Fetch task again to get task_type and model_version_id
                 task = await task_service.get_task(db, task_id)
 
                 result = await JobRunner.get_coroutine(
@@ -73,7 +70,6 @@ async def _run_task(task_self, task_id: str, payload: dict):
 
                 runtime_ms = int((time.time() - start_time) * 1000)
 
-                # Transition task → SUCCESS
                 await task_service.complete_task_execution(db, task_id=task_id)
                 await execution_service.mark_execution_success(
                     db,
@@ -81,12 +77,20 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     runtime_ms=runtime_ms,
                 )
 
-                # Store result
                 await result_service.store_result(
                     db,
                     task_id=task_id,
                     execution_id=str(execution.id),
                     output_summary=result if isinstance(result, dict) else {"output": result},
+                )
+
+                await audit_service.log_task_completed(db, task_id=task_id)
+                await audit_service.log_inference_called(
+                    db,
+                    task_id=task_id,
+                    provider=result.get("provider", "unknown"),
+                    model_id=result.get("model_id", "unknown"),
+                    latency_ms=result.get("latency_ms", 0),
                 )
 
                 return result
@@ -101,6 +105,11 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     runtime_ms=runtime_ms,
                 )
                 await task_service.fail_task_execution(
+                    db,
+                    task_id=task_id,
+                    error_message=str(exc),
+                )
+                await audit_service.log_task_failed(
                     db,
                     task_id=task_id,
                     error_message=str(exc),
@@ -122,8 +131,12 @@ async def _run_task(task_self, task_id: str, payload: dict):
                     raise task_self.retry(exc=exc)
 
                 except TaskExecutionError:
-                    # Max retries exhausted — mark as permanently FAILED
                     await task_service.fail_task_execution(
+                        db,
+                        task_id=task_id,
+                        error_message=f"Max retries exhausted. Last error: {exc}",
+                    )
+                    await audit_service.log_task_failed(
                         db,
                         task_id=task_id,
                         error_message=f"Max retries exhausted. Last error: {exc}",

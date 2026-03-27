@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.session import get_async_db
@@ -10,24 +10,36 @@ from backend.core.exceptions import (
     InvalidCredentialsError,
     InvalidTokenError,
 )
+from backend.services.audit_log_service import AuditService
+from backend.api.deps import get_ip
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+audit_service = AuditService()
 auth_service = AuthService()
 
 
 @router.post("/register", response_model=TokenResponse)
 async def register(
     payload: UserCreate,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        return await auth_service.register(
-            db,
+        result = await auth_service.register(
+            db=db,
             email=payload.email,
             password=payload.password,
             username=payload.username,
         )
+
+        await audit_service.log_user_registered(
+            db=db,
+            user_id=str(result["user"].id),
+            ip_address=get_ip(request),
+        )
+
+        return result
 
     except UserAlreadyExistsError as e:
         raise HTTPException(
@@ -35,18 +47,26 @@ async def register(
             detail=str(e),
         )
 
-
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: UserLogin,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        return await auth_service.login(
+        result = await auth_service.login(
             db,
             email=payload.email,
             password=payload.password,
         )
+
+        await audit_service.log_user_login(
+            db,
+            user_id=str(result["user"].id),
+            ip_address=get_ip(request),
+        )
+
+        return result
 
     except InvalidCredentialsError:
         raise HTTPException(

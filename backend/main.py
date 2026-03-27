@@ -12,6 +12,7 @@ from backend.api.routes.task import router as task_router
 from backend.api.routes.user import router as user_router
 from backend.api.routes.result import router as result_router
 from backend.api.routes.execution import router as execution_router
+from backend.api.routes.audit_log import router as audit_log_router
 
 from backend.queue.redis_client import init_redis, close_redis
 from backend.monitoring.health import router as health_router
@@ -43,6 +44,7 @@ app.include_router(user_router)
 app.include_router(task_router)
 app.include_router(result_router)
 app.include_router(execution_router)
+app.include_router(audit_log_router)
 
 # Monitoring
 app.include_router(health_router)
