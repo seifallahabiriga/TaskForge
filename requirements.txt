@@ -16,3 +16,4 @@ prometheus-client
 asyncpg
 httpx
 alembic
+gunicorn>=21.2.0
