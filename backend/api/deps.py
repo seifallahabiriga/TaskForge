@@ -13,6 +13,7 @@ user_repo = UserRepository()
 
 
 async def get_current_user(
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     token: str = Depends(oauth2_scheme),
 ):
@@ -46,6 +47,7 @@ async def get_current_user(
             detail="User not found",
         )
 
+    request.state.current_user = user
     return user
 
 async def require_admin(current_user = Depends(get_current_user)):

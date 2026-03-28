@@ -9,6 +9,7 @@ from backend.core.exceptions import TaskNotFoundError, TaskExecutionError
 
 from fastapi import Request
 from backend.services.audit_log_service import AuditService
+from backend.middleware.rate_limiter import limit_task_create, limit_task_read
 from backend.api.deps import get_ip
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
@@ -21,7 +22,7 @@ audit_service = AuditService()
 # Create Task                                                          #
 # ------------------------------------------------------------------ #
 
-@router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=TaskResponse, status_code=201, dependencies=[Depends(limit_task_create)])
 async def create_task(
     payload: TaskCreate,
     request: Request,
@@ -53,7 +54,7 @@ async def create_task(
 # Get Task By ID                                                       #
 # ------------------------------------------------------------------ #
 
-@router.get("/{task_id}", response_model=TaskResponse)
+@router.get("/{task_id}", response_model=TaskResponse, dependencies=[Depends(limit_task_read)])
 async def get_task(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),
@@ -74,7 +75,7 @@ async def get_task(
 # Poll Task Status                                                     #
 # ------------------------------------------------------------------ #
 
-@router.get("/{task_id}/status", response_model=TaskStatusResponse)
+@router.get("/{task_id}/status", response_model=TaskStatusResponse, dependencies=[Depends(limit_task_read)])
 async def get_task_status(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),
@@ -95,7 +96,7 @@ async def get_task_status(
 # List My Tasks                                                        #
 # ------------------------------------------------------------------ #
 
-@router.get("/user/me", response_model=list[TaskResponse])
+@router.get("/user/me", response_model=list[TaskResponse], dependencies=[Depends(limit_task_read)])
 async def get_user_tasks(
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),

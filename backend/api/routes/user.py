@@ -5,6 +5,7 @@ from backend.db.session import get_async_db
 from backend.api.deps import get_current_user
 from backend.repositories.user_repository import UserRepository
 from backend.schemas.user import UserResponse, UserUpdate
+from backend.middleware.rate_limiter import limit_default
 
 
 router = APIRouter(
@@ -16,7 +17,7 @@ user_repo = UserRepository()
 
 
 # Get Current User
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse, dependencies=[Depends(limit_default)])
 async def get_me(
     current_user = Depends(get_current_user),
 ):

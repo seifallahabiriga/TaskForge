@@ -6,6 +6,7 @@ from backend.api.deps import get_current_user
 from backend.schemas.execution import ExecutionResponse
 from backend.services.execution_service import ExecutionService
 from backend.services.task_service import TaskService
+from backend.middleware.rate_limiter import limit_task_read
 
 
 router = APIRouter(prefix="/executions", tags=["Executions"])
@@ -17,7 +18,7 @@ task_service = TaskService()
 # Get Execution By ID                                                  #
 # ------------------------------------------------------------------ #
 
-@router.get("/{execution_id}", response_model=ExecutionResponse)
+@router.get("/{execution_id}", response_model=ExecutionResponse, dependencies=[Depends(limit_task_read)])
 async def get_execution(
     execution_id: str,
     db: AsyncSession = Depends(get_async_db),
@@ -41,7 +42,7 @@ async def get_execution(
 # Get Executions By Task ID                                            #
 # ------------------------------------------------------------------ #
 
-@router.get("/task/{task_id}", response_model=list[ExecutionResponse])
+@router.get("/task/{task_id}", response_model=list[ExecutionResponse], dependencies=[Depends(limit_task_read)])
 async def get_task_executions(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),

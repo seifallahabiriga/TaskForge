@@ -8,10 +8,12 @@ from backend.services.auth_service import AuthService
 from backend.core.exceptions import (
     UserAlreadyExistsError,
     InvalidCredentialsError,
-    InvalidTokenError,
+    InvalidTokenError, 
 )
 from backend.services.audit_log_service import AuditService
+from backend.middleware.rate_limiter import limit_auth_register, limit_auth_login
 from backend.api.deps import get_ip
+
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -19,7 +21,7 @@ audit_service = AuditService()
 auth_service = AuthService()
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register", response_model=TokenResponse, dependencies=[Depends(limit_auth_register)])
 async def register(
     payload: UserCreate,
     request: Request,
@@ -47,7 +49,7 @@ async def register(
             detail=str(e),
         )
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(limit_auth_login)])
 async def login(
     payload: UserLogin,
     request: Request,

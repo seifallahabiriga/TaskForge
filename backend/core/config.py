@@ -33,14 +33,21 @@ class Settings(BaseSettings):
     # Authentication security
     ALGORITHM: str                  # JWT signing algorithm (e.g., HS256)
     SECRET_KEY: str                 # Cryptographic signing secret
-    ACCESS_TOKEN_EXPIRE_MINUTES: int   # Access token lifetime (minutes)
-    REFRESH_TOKEN_EXPIRE_DAYS: int     # Refresh token lifetime (days)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15   # Access token lifetime (minutes)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7     # Refresh token lifetime (days)
 
     # API defaults
     API_INFERENCE_TOKEN_LIMIT: int = 1000       # Max tokens per request (default for all providers)
     API_INFERENCE_TEMPERATURE: float = 0.7     # Default temperature for text generation
     API_ANALYSIS_TOKEN_LIMIT: int = 500        # Max tokens per request (default for analysis tasks)
     API_ANALYSIS_TEMPERATURE: float = 0.2     # Default temperature for analysis tasks
+
+    # Rate limiting
+    RATE_LIMIT_AUTH_REGISTER: int = 5          # requests per hour per IP
+    RATE_LIMIT_AUTH_LOGIN: int = 10            # requests per 15 min per IP
+    RATE_LIMIT_TASK_CREATE: int = 30           # requests per hour per user
+    RATE_LIMIT_TASK_READ: int = 120            # requests per hour per user
+    RATE_LIMIT_DEFAULT: int = 60               # requests per hour per user
 
     # Runtime environment control
     ENVIRONMENT: str = "development"   # Deployment context (development/staging/production)

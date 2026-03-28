@@ -7,6 +7,7 @@ from backend.schemas.result import ResultResponse
 from backend.services.result_service import ResultService
 from backend.services.task_service import TaskService
 from backend.core.exceptions import ResultNotFoundError
+from backend.middleware.rate_limiter import limit_default
 
 
 router = APIRouter(prefix="/results", tags=["Results"])
@@ -18,7 +19,7 @@ task_service = TaskService()
 # Get Result By Task ID                                                #
 # ------------------------------------------------------------------ #
 
-@router.get("/{task_id}", response_model=ResultResponse)
+@router.get("/{task_id}", response_model=ResultResponse, dependencies=[Depends(limit_default)])
 async def get_result(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),
