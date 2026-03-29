@@ -6,6 +6,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
+    # Database credentials
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    REDIS_PASSWORD: str
+
     # Database connections
     DATABASE_ASYNC_URL: str   # Async SQLAlchemy connection string (FastAPI layer)
     DATABASE_SYNC_URL: str    # Sync connection string (Celery worker layer)
