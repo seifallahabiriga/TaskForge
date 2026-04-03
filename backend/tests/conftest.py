@@ -8,7 +8,7 @@ from alembic.config import Config
 from alembic import command
 
 from backend.main import app
-from backend.api.deps import get_db
+from backend.db.session import get_async_db
 
 # ---------------------------------------------------------------------------
 # Test database URL — override via env or fall back to a dedicated test DB.
@@ -120,7 +120,7 @@ async def client(db_session):
     async def override_get_db():
         yield db_session
 
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_async_db] = override_get_db
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
