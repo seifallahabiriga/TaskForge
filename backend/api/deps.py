@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.db.session import get_async_db
 from backend.core.security import decode_token
 from backend.repositories.user_repository import UserRepository
-from backend.core.exceptions import PermissionDeniedError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

@@ -5,7 +5,7 @@ from backend.db.session import get_async_db
 from backend.api.deps import get_current_user, require_admin
 from backend.schemas.task import TaskCreate, TaskResponse, TaskStatusResponse
 from backend.services.task_service import TaskService
-from backend.core.exceptions import TaskNotFoundError, TaskExecutionError
+from backend.core.exceptions import TaskExecutionError
 
 from fastapi import Request
 from backend.services.audit_log_service import AuditService

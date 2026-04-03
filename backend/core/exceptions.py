@@ -36,10 +36,10 @@ class ResultNotFoundError(Exception):
     pass
 
 class ModelNotFoundError(Exception):
-    pass
- 
+    """Raised when a ModelVersion row doesn't exist or no default is configured."""
+
 class ModelInferenceError(Exception):
-    pass
+    """Raised when inference fails across all providers."""
 
 class PermissionDeniedError(Exception):
     """Raised when a user does not have permission to perform an action."""
@@ -72,9 +72,3 @@ class AllProvidersFailedError(Exception):
         self.errors = errors
         summary = "; ".join(str(e) for e in errors)
         super().__init__(f"All providers failed: {summary}")
-
-class ModelNotFoundError(Exception):
-    """Raised when a ModelVersion row doesn't exist or no default is configured."""
-
-class ModelInferenceError(Exception):
-    """Raised when inference fails across all providers."""
