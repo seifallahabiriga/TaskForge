@@ -17,3 +17,5 @@ asyncpg
 httpx
 alembic
 gunicorn>=21.2.0
+pytest
+pytest-asyncio

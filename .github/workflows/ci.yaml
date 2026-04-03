@@ -1,0 +1,264 @@
+name: CI/CD
+
+on:
+  push:
+    branches: ["**"]      # lint + test + build on every branch push
+  pull_request:
+    branches: ["**"]      # same for PRs — push job is gated separately
+
+# Cancel in-flight runs on the same branch/PR when a new commit arrives.
+# Saves CI minutes and avoids stale results racing ahead.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Shared across all jobs. Changing the Python version here propagates everywhere.
+env:
+  PYTHON_VERSION: "3.11"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # e.g. yourname/taskforge
+
+jobs:
+
+  # --------------------------------------------------------------------------
+  # 1. LINT
+  #
+  # Ruff is ~100x faster than flake8 and handles import sorting (isort) too.
+  # We fail fast here so test runners aren't wasted on bad code.
+  # --------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff (lint + import sort check)
+        # --output-format=github annotates the PR diff with lint errors inline.
+        run: ruff check --output-format=github backend/
+
+  # --------------------------------------------------------------------------
+  # 2. TEST
+  #
+  # Spins up real Postgres and Redis as GitHub Actions services — no mocks.
+  # The app uses PostgreSQL-specific features (UUID columns, JSONB), so
+  # SQLite is explicitly excluded as a test target.
+  #
+  # Services are available at localhost on their standard ports. GitHub
+  # Actions sets up port forwarding automatically.
+  #
+  # E2E tests (marked with @pytest.mark.e2e) are skipped here because they
+  # require a live Celery worker. They can be run in a separate job or
+  # triggered manually via workflow_dispatch when needed.
+  # --------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint                          # Don't waste test runners on bad code.
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: taskforge_test
+        ports:
+          - 5432:5432
+        # Wait until Postgres is ready to accept connections before the job
+        # step runs. Without this, the engine creation races the DB startup.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Test DB — points at the service container above.
+      TEST_DATABASE_ASYNC_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/taskforge_test
+      # Sync URL for Alembic (used inside conftest.py to run migrations).
+      DATABASE_SYNC_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/taskforge_test
+      # Celery / Redis.
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/1
+      # App settings — dummy values are fine for unit/integration tests.
+      # E2E tests that actually call providers will need real keys in secrets.
+      SECRET_KEY: test-secret-key-not-for-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      APP_NAME: TaskForge
+      APP_URL: http://localhost:8000
+      ENVIRONMENT: test
+      DEBUG: "false"
+      # Dummy provider keys — tests that call the ML layer will fail unless
+      # you either mock them or run the e2e suite with real secrets.
+      GROQ_API_KEY: dummy
+      GEMINI_API_KEY: dummy
+      HUGGINGFACE_API_KEY: dummy
+      OPENROUTER_API_KEY: dummy
+      # Rate limit settings (low values to avoid test flakiness).
+      RATE_LIMIT_AUTH_REGISTER: 100
+      RATE_LIMIT_AUTH_LOGIN: 100
+      RATE_LIMIT_TASK_CREATE: 100
+      RATE_LIMIT_TASK_READ: 100
+      RATE_LIMIT_DEFAULT: 100
+      # Celery queue names.
+      CELERY_DEFAULT_QUEUE: default
+      CELERY_HIGH_PRIORITY_QUEUE: high
+      CELERY_LOW_PRIORITY_QUEUE: low
+      CELERY_MAX_RETRIES: 3
+      CELERY_RETRY_DELAY_SECONDS: 5
+      # Token / temperature settings.
+      API_INFERENCE_TOKEN_LIMIT: 1000
+      API_INFERENCE_TEMPERATURE: "0.7"
+      API_ANALYSIS_TOKEN_LIMIT: 500
+      API_ANALYSIS_TEMPERATURE: "0.2"
+      # Prod-only vars — required by Settings(extra="forbid") even in tests.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: taskforge_test
+      REDIS_PASSWORD: ""
+      # Async URLs
+      DATABASE_ASYNC_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/taskforge_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install test dependencies
+        # pytest-asyncio and httpx[asgi] must be pinned here even if they're
+        # in requirements.txt — belt-and-suspenders for CI reproducibility.
+        run: pip install pytest pytest-asyncio httpx anyio
+
+      - name: Run tests (excluding E2E)
+        # -x: stop on first failure — faster feedback in CI.
+        # -m "not e2e": skip tests that need a live Celery worker + real API keys.
+        run: pytest -x -m "not e2e" -v
+
+  # --------------------------------------------------------------------------
+  # 3. BUILD
+  #
+  # Builds the Docker image using the existing docker/Dockerfile.
+  # This job verifies the image compiles cleanly on every push — even
+  # branches that aren't going to production.
+  #
+  # We don't push here (that's job 4) — just confirm the build succeeds.
+  # --------------------------------------------------------------------------
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+    needs: test                          # Don't build broken code.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        # Buildx gives us layer caching and multi-platform support for free.
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          # Cache layers from the previous build. Dramatically speeds up
+          # rebuilds when only application code changed (not dependencies).
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Tag with SHA so we can reference it in the push job.
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  # --------------------------------------------------------------------------
+  # 4. PUSH
+  #
+  # Only runs on pushes to main — not on PRs or other branches.
+  #
+  # Tags:
+  #   :latest          — always points to the most recent main build.
+  #   :{sha}           — immutable tag for production rollbacks. If a bad
+  #                      deploy goes out, you can pin docker-compose.prod.yml
+  #                      to a specific SHA tag and redeploy in seconds.
+  #
+  # Authentication: GITHUB_TOKEN is automatically provided by Actions and
+  # has write access to ghcr.io for packages in the same repo. No secret
+  # configuration required — this is the main advantage of ghcr.io over
+  # Docker Hub for GitHub-hosted projects.
+  # --------------------------------------------------------------------------
+  push:
+    name: Push to registry
+    runs-on: ubuntu-latest
+    needs: build
+
+    # Gate: only push from main branch pushes, never from PRs.
+    # github.event_name == 'push' excludes pull_request events.
+    # github.ref == 'refs/heads/main' ensures we're on main, not a branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # Required for GITHUB_TOKEN to have permission to push packages.
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN is injected automatically — no secrets configuration.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Always tag :latest on main.
+            type=raw,value=latest
+            # Immutable SHA tag for rollbacks.
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Reuse cached layers from the build job — avoids rebuilding.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
