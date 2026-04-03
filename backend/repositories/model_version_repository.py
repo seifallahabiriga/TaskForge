@@ -25,8 +25,8 @@ class ModelVersionRepository:
             select(ModelVersion)
             .where(
                 ModelVersion.task_type == task_type,
-                ModelVersion.is_default == True,
-                ModelVersion.is_active == True,
+                ModelVersion.is_default,
+                ModelVersion.is_active,
             )
         )
         return result.scalars().first()
@@ -42,7 +42,7 @@ class ModelVersionRepository:
             .where(
                 ModelVersion.provider == provider,
                 ModelVersion.task_type == task_type,
-                ModelVersion.is_active == True,
+                ModelVersion.is_active,
             )
             .order_by(ModelVersion.created_at.asc())
         )
@@ -56,7 +56,7 @@ class ModelVersionRepository:
     ) -> list[ModelVersion]:
         query = select(ModelVersion).where(ModelVersion.task_type == task_type)
         if active_only:
-            query = query.where(ModelVersion.is_active == True)
+            query = query.where(ModelVersion.is_active)
         result = await db.execute(query.order_by(ModelVersion.created_at.desc()))
         return result.scalars().all()
 
@@ -67,7 +67,7 @@ class ModelVersionRepository:
     ) -> list[ModelVersion]:
         query = select(ModelVersion)
         if active_only:
-            query = query.where(ModelVersion.is_active == True)
+            query = query.where(ModelVersion.is_active)
         result = await db.execute(query.order_by(ModelVersion.created_at.desc()))
         return result.scalars().all()
 

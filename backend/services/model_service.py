@@ -17,7 +17,6 @@ from backend.schemas.provider import (
 )
 from backend.core.exceptions import (
     AllProvidersFailedError,
-    ModelNotFoundError,
     ModelInferenceError,
 )
 from backend.core.enums import TaskType

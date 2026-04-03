@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from backend.db.session import async_engine, sync_engine
+from backend.db.session import sync_engine
 from backend.db.base import Base
 
 # ensures Celery tasks are registered on startup

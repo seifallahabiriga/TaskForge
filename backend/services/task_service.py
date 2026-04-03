@@ -6,8 +6,7 @@ from backend.services.task_lifecycle_engine import TaskLifecycleEngine
 from backend.queue.producer import Producer
 from backend.core.exceptions import (
     TaskNotFoundError,
-    TaskExecutionError,
-    TaskPermissionError
+    TaskExecutionError
 )
 
 

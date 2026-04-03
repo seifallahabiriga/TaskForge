@@ -6,12 +6,7 @@ from backend.schemas.provider import (
     EmbeddingResponse
 )
 from backend.core.exceptions import (
-    ProviderError,
-    ProviderAuthError,
-    ProviderRateLimitError,
-    ProviderTimeoutError,
-    ProviderUnavailableError,
-    AllProvidersFailedError,
+    ProviderUnavailableError
 )
 
 

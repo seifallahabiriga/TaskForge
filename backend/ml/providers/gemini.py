@@ -5,9 +5,7 @@ from backend.core.config import settings
 from backend.ml.providers.base import BaseProvider
 from backend.schemas.provider import (
     CompletionRequest,
-    CompletionResponse,
-    EmbeddingRequest,
-    EmbeddingResponse,
+    CompletionResponse
 )
 from backend.core.exceptions import (
     ProviderAuthError,

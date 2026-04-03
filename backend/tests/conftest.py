@@ -9,7 +9,6 @@ from alembic import command
 
 from backend.main import app
 from backend.api.deps import get_db
-from backend.core.config import settings
 
 # ---------------------------------------------------------------------------
 # Test database URL — override via env or fall back to a dedicated test DB.

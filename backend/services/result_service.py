@@ -2,8 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.repositories.result_repository import ResultRepository
 from backend.core.exceptions import (
-    TaskNotFoundError,
-    ResultNotFoundError,
+    ResultNotFoundError
 )
 
 

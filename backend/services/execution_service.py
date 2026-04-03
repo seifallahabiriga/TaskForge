@@ -4,12 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.repositories.execution_repository import ExecutionRepository
 from backend.repositories.task_repository import TaskRepository
-from backend.workers.worker_app.job_runner import JobRunner
 from backend.core.enums import ExecutionStatus
 from backend.core.exceptions import (
     ExecutionNotFoundError,
-    TaskNotFoundError,
-    TaskExecutionError
+    TaskNotFoundError
 )
 
 

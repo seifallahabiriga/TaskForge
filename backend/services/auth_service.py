@@ -1,4 +1,3 @@
-from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.repositories.user_repository import UserRepository
@@ -11,7 +10,6 @@ from backend.core.security import (
     validate_token_type,
 )
 from backend.core.exceptions import UserAlreadyExistsError, InvalidCredentialsError
-from backend.core.config import settings
 
 
 class AuthService:
