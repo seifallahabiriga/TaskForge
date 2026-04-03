@@ -145,7 +145,7 @@ async def registered_user(client):
     payload = {
         "email": "testuser@example.com",
         "password": "TestPassword123!",
-        "full_name": "Test User",
+        "username": "Test User",
     }
     response = await client.post("/auth/register", json=payload)
     assert response.status_code == 201, response.text

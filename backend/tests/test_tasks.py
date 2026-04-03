@@ -88,7 +88,7 @@ async def test_get_task_ownership_enforced(client, auth_headers):
         json={
             "email": "userb@example.com",
             "password": "OtherPass99!",
-            "full_name": "User B",
+            "username": "User B",
         },
     )
     login_b = await client.post(

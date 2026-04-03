@@ -15,7 +15,7 @@ async def test_register_success(client):
         json={
             "email": "newuser@example.com",
             "password": "StrongPass99!",
-            "full_name": "New User",
+            "username": "New User",
         },
     )
     assert response.status_code == 201
@@ -33,7 +33,7 @@ async def test_register_duplicate_email(client):
     payload = {
         "email": "dup@example.com",
         "password": "StrongPass99!",
-        "full_name": "First",
+        "username": "First",
     }
     first = await client.post("/auth/register", json=payload)
     assert first.status_code == 201
