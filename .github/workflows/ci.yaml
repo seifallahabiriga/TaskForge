@@ -91,6 +91,8 @@ jobs:
           --health-retries 10
 
     env:
+      # Ensure the app modules are importable in tests.
+      PYTHONPATH: .  
       # Test DB — points at the service container above.
       TEST_DATABASE_ASYNC_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/taskforge_test
       # Sync URL for Alembic (used inside conftest.py to run migrations).
@@ -141,9 +143,9 @@ jobs:
       DATABASE_ASYNC_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/taskforge_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -176,7 +178,7 @@ jobs:
     needs: test                          # Don't build broken code.
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         # Buildx gives us layer caching and multi-platform support for free.
@@ -227,7 +229,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
