@@ -16,7 +16,7 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository.toLowerCase() }}   # e.g. yourname/taskforge
+  IMAGE_NAME: seifallahabiriga/taskforge
 
 jobs:
 
