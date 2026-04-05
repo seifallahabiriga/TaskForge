@@ -6,7 +6,13 @@ from sqlalchemy import pool
 from alembic import context
 
 from backend.db.base import Base
-from backend.models import *
+import backend.models.user
+import backend.models.task
+import backend.models.execution
+import backend.models.result
+import backend.models.model_version
+import backend.models.audit_log
+import backend.models.worker
 
 import os
 from dotenv import load_dotenv
