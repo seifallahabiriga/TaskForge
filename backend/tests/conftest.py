@@ -110,10 +110,10 @@ async def registered_user(client):
         json={
             "email": "testuser@example.com",
             "password": "TestPassword123!",
-            "full_name": "Test User",
+            "username": "testuser",
         },
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 200, response.text
     return response.json()
 
 
