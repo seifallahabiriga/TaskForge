@@ -8,15 +8,25 @@ from alembic.config import Config
 from alembic import command
 
 from backend.main import app
-from backend.db.session import get_async_db
+from backend.api.deps import get_db
 
 # ---------------------------------------------------------------------------
-# Test database URL — override via env or fall back to a dedicated test DB.
-# Never run tests against the application database.
+# Test database URLs.
+#
+# We derive both from a single env var so they are guaranteed to point at
+# the same database. The async URL is used by SQLAlchemy; the sync URL is
+# used by Alembic (which needs psycopg2, not asyncpg).
 # ---------------------------------------------------------------------------
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_ASYNC_URL"
+TEST_ASYNC_URL = os.environ["TEST_DATABASE_ASYNC_URL"]
+
+# Derive the sync URL — replace the driver prefix only.
+# This guarantees Alembic and the test engine always target the same DB.
+TEST_SYNC_URL = TEST_ASYNC_URL.replace(
+    "postgresql+asyncpg://", "postgresql+psycopg2://"
 )
+
+print(f"\n[conftest] Async URL : {TEST_ASYNC_URL}")
+print(f"[conftest] Sync URL  : {TEST_SYNC_URL}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -42,26 +52,17 @@ def event_loop():
 
 @pytest_asyncio.fixture(scope="session")
 async def test_engine():
-    """
-    Create the async engine and run Alembic migrations exactly once.
+    engine = create_async_engine(TEST_ASYNC_URL, echo=False)
 
-    We point Alembic at the test database by temporarily overriding the
-    sqlalchemy.url in the config object — no file edits required.
-    """
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-
-    # Run migrations synchronously via Alembic's scripting API.
-    # Alembic uses its own sync connection internally, which is fine here.
     def run_migrations():
         alembic_cfg = Config("alembic.ini")
-        # Override the URL so Alembic targets the test DB, not production.
-        alembic_cfg.set_main_option(
-            "sqlalchemy.url",
-            TEST_DATABASE_URL.replace("+asyncpg", "+psycopg2"),
-        )
+        # Explicitly set the URL — never let Alembic fall through to
+        # alembic.ini or DATABASE_SYNC_URL which may point at the app DB.
+        alembic_cfg.set_main_option("sqlalchemy.url", TEST_SYNC_URL)
+        print(f"[alembic] Migrating: {TEST_SYNC_URL}")
         command.upgrade(alembic_cfg, "head")
+        print("[alembic] Done.")
 
-    # Run in a thread so we don't block the event loop.
     await asyncio.get_event_loop().run_in_executor(None, run_migrations)
 
     yield engine
@@ -71,29 +72,13 @@ async def test_engine():
 
 @pytest_asyncio.fixture(scope="session")
 async def test_session_factory(test_engine):
-    """Session factory bound to the test engine."""
     return async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
 
 
-# ---------------------------------------------------------------------------
-# Function-scoped DB session with automatic rollback.
-#
-# Each test gets its own transaction that is rolled back after the test
-# completes — leaving the database clean for the next test without needing
-# to truncate tables or re-run migrations.
-# ---------------------------------------------------------------------------
 @pytest_asyncio.fixture
 async def db_session(test_session_factory):
-    """
-    Yield a database session that rolls back after each test.
-
-    The trick: we begin a savepoint (nested transaction) inside the outer
-    transaction, run the test, then roll back to the savepoint. This works
-    even for code that calls session.commit() internally — the outer
-    transaction absorbs the commit and the rollback undoes it.
-    """
     async with test_session_factory() as session:
         await session.begin()
         try:
@@ -102,25 +87,12 @@ async def db_session(test_session_factory):
             await session.rollback()
 
 
-# ---------------------------------------------------------------------------
-# HTTP client wired to the FastAPI app.
-#
-# ASGITransport lets httpx send requests directly to the ASGI app without
-# spinning up a real HTTP server. We override the get_db dependency so
-# routes use our test session (with rollback) instead of the real one.
-# ---------------------------------------------------------------------------
 @pytest_asyncio.fixture
 async def client(db_session):
-    """
-    Async HTTP client that hits the FastAPI app in-process.
-
-    Dependency override: get_db → yields the test session so all DB
-    operations inside request handlers are part of the rollback transaction.
-    """
     async def override_get_db():
         yield db_session
 
-    app.dependency_overrides[get_async_db] = override_get_db
+    app.dependency_overrides[get_db] = override_get_db
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -131,35 +103,22 @@ async def client(db_session):
     app.dependency_overrides.clear()
 
 
-# ---------------------------------------------------------------------------
-# Convenience fixtures
-# ---------------------------------------------------------------------------
 @pytest_asyncio.fixture
 async def registered_user(client):
-    """
-    Register a test user and return the response payload.
-
-    Tests that need an authenticated user should use this fixture rather
-    than repeating the registration call.
-    """
-    payload = {
-        "email": "testuser@example.com",
-        "password": "TestPassword123!",
-        "username": "Test User",
-    }
-    response = await client.post("/auth/register", json=payload)
+    response = await client.post(
+        "/auth/register",
+        json={
+            "email": "testuser@example.com",
+            "password": "TestPassword123!",
+            "full_name": "Test User",
+        },
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
 
 @pytest_asyncio.fixture
 async def auth_headers(client, registered_user):
-    """
-    Log in as the registered test user and return Authorization headers.
-
-    Usage in tests:
-        response = await client.get("/tasks/user/me", headers=auth_headers)
-    """
     response = await client.post(
         "/auth/login",
         json={
