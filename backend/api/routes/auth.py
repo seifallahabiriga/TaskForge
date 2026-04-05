@@ -83,7 +83,7 @@ async def refresh(
     db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        return await auth_service.refresh_tokens(
+        return auth_service.refresh_tokens(
             refresh_token=payload.refresh_token
         )
 
