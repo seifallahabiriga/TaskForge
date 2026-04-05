@@ -35,19 +35,6 @@ print(f"[conftest] Sync URL  : {TEST_SYNC_URL}\n")
 # We use a session-scoped fixture so migrations only run once per test run,
 # not once per test. That keeps the suite fast without sacrificing fidelity.
 # ---------------------------------------------------------------------------
-@pytest.fixture(scope="session")
-def event_loop():
-    """
-    Provide a single event loop for the entire test session.
-
-    pytest-asyncio creates a new loop per test by default, which causes
-    "Future attached to a different loop" errors when session-scoped async
-    fixtures share state with function-scoped tests. Overriding here pins
-    everything to one loop.
-    """
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session")
